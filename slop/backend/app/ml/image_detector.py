@@ -674,51 +674,47 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     elif multi_crop_prob is not None:
         best_neural = multi_crop_prob
 
-    # ===== NEURAL-FIRST CONSENSUS ENGINE (80-85% Neural Authority) =====
-    if best_neural is not None and best_neural >= 0.70:
-        # High confidence neural AI detection — Swin Transformer takes primary authority
-        raw_overall = 0.85 * best_neural + 0.15 * max(heuristic, best_neural * 0.90)
-        overall = round(_clamp01(0.70 + (raw_overall - 0.70) * 0.95 / 0.30), 3) if raw_overall >= 0.70 else round(raw_overall, 3)
-        hint = f"Vision Transformer ensemble detected synthetic generative content ({int(overall * 100)}% AI probability)."
-    elif is_diagram and (best_neural is None or best_neural < 0.70):
-        # Authentic technical diagrams / software flowcharts / vector graphics
-        overall = 0.03
-        hint = "Authentic technical diagram / UI graphic layout. Discrete orthogonal vectors and typography verified."
-    elif is_real_camera and (best_neural is None or best_neural < 0.50):
-        # Authentic camera capture with confirmed sensor noise and non-generative neural profile
-        raw_cam = (best_neural or 0.08) * 0.45 + min(heuristic, 0.12) * 0.35 + min(cfa, 0.20) * 0.20
-        overall = round(_clamp01(min(raw_cam, 0.08)), 3)
-        hint = "Authentic camera photograph verified via CMOS Bayer CFA sensor fingerprint and natural optical noise."
-    elif is_anime_ai:
-        overall = max(0.92, best_neural or 0.88)
-        hint = "Detected AI anime / stylized neural diffusion model."
-    elif best_neural is not None:
-        if best_neural >= 0.50:
-            # Moderate AI evidence (0.50 - 0.70)
-            overall = round(_clamp01(0.80 * best_neural + 0.20 * max(heuristic, best_neural * 0.85)), 3)
-            hint = f"Vision Transformer ensemble classified image as {int(overall * 100)}% synthetic generative content."
-        elif best_neural <= 0.25:
-            # Neural model verified authentic content
-            overall = round(_clamp01(0.80 * best_neural + 0.20 * min(heuristic, 0.20)), 3)
-            hint = f"Vision Transformer verified authentic content ({int((1 - overall) * 100)}% human confidence)."
-        else:
-            # Ambiguous region (0.25 - 0.50)
-            overall = round(_clamp01(0.70 * best_neural + 0.30 * heuristic), 3)
-            hint = f"Multi-spectral consensus: {int(best_neural * 100)}% neural + {int(heuristic * 100)}% forensic heuristics."
-    else:
-        # Fallback if ViT unavailable
-        overall = round(_clamp01(0.35 * heuristic + 0.25 * cfa + 0.25 * noise + 0.15 * exif["metadata_risk"]), 3)
-        hint = "v3.0 Heuristic-only (ELA + FFT + CFA + DCT + noise uniformity)."
+    # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
+    # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
+    from app.ml.fusion import fuse_image_score
 
-    # If cryptographic or explicit signature detected, reflect confidence
-    if sig_info["detected"] and sig_info["confidence"] > 0.70 and not is_diagram and not is_real_camera:
-        overall = max(overall, sig_info["confidence"])
-        hint = f"Detected {sig_info['signature_type']} ({sig_info['generator']}). " + hint
+    fusion_features = {
+        "best_neural": best_neural,
+        "heuristic_score": heuristic,
+        "cfa_score": cfa,
+        "ela_score": ela,
+        "fft_score": fft,
+        "noise_score": noise,
+        "dct_score": dct,
+        "metadata_risk": exif["metadata_risk"],
+        "is_diagram": 1.0 if (is_diagram and (best_neural is None or best_neural < 0.70)) else 0.0,
+        "is_real_camera": 1.0 if (is_real_camera and (best_neural is None or best_neural < 0.50)) else 0.0,
+        "is_anime_ai": 1.0 if is_anime_ai else 0.0,
+        "signature_detected": 1.0 if sig_info["detected"] else 0.0,
+        "signature_confidence": float(sig_info.get("confidence", 0.0)),
+        "c2pa_verified": 1.0 if c2pa["verified"] else 0.0,
+    }
 
-    # C2PA verified = definitely human / authentic
+    fusion_res = fuse_image_score(fusion_features)
+    overall = fusion_res["overall_score"]
+
     if c2pa["verified"]:
-        overall = _clamp01(overall * 0.15)
-        hint = "✓ C2PA verified provenance. " + hint
+        hint = "✓ C2PA verified provenance. "
+    elif is_diagram and overall <= 0.20:
+        hint = "Authentic technical diagram / UI graphic layout. Discrete orthogonal vectors and typography verified."
+    elif is_real_camera and overall <= 0.20:
+        hint = "Authentic camera photograph verified via CMOS Bayer CFA sensor fingerprint and natural optical noise."
+    elif is_anime_ai and overall >= 0.80:
+        hint = "Detected AI anime / stylized neural diffusion model."
+    elif best_neural is not None and best_neural >= 0.70:
+        hint = f"Vision Transformer ensemble detected synthetic generative content ({int(overall * 100)}% AI probability)."
+    elif best_neural is not None and best_neural <= 0.25:
+        hint = f"Vision Transformer verified authentic content ({int((1 - overall) * 100)}% human confidence)."
+    else:
+        hint = f"Multi-spectral consensus: {int(overall * 100)}% AI probability across forensic ensemble."
+
+    if sig_info["detected"] and sig_info["confidence"] > 0.70 and not is_diagram and not is_real_camera:
+        hint = f"Detected {sig_info['signature_type']} ({sig_info['generator']}). " + hint
 
     signals = {
         "compression_artifact_score": ela,

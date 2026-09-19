@@ -753,8 +753,9 @@ def _load_model():
             model.to(device).eval()
             model_id = "Hello-SimpleAI/chatgpt-detector-roberta"
             return tok, model, torch, model_id, device
-        except Exception:
-            pass
+        except Exception as e:
+            # ponytail: Local directory model load failure falls back to cached huggingface weights
+            logger.warning("Local text model load from %s failed: %s; falling back to %s", model_dir, e, mid)
 
     mid = "openai-community/roberta-base-openai-detector"
     try:
@@ -909,45 +910,27 @@ def analyze_text(text: str) -> dict:
         else:
             neural_w, heuristic_w = 0.70, 0.30
 
-        # ===== v3.4 FRONTIER CALIBRATION & DISAGREEMENT DETECTION =====
         disagreement = abs(heuristic_score - mp)
-        inference_mode = "roberta_classifier"
+        inference_mode = "calibrated_frontier_ensemble" if (llm_pattern_score >= 0.60 or (heuristic_score > 0.55 and mp < 0.35)) else "roberta_classifier"
 
-        if (heuristic_score > 0.55 and mp < 0.35) or (llm_pattern_score >= 0.60 and mp < 0.45):
-            # CASE 1: Heuristic detects AI but neural model says human
-            # This happens with modern frontier LLMs (Gemini 1.5/2.0, Claude 3.5, GPT-4o, DeepSeek)
-            # that the 2022/2023 RoBERTa model was never trained on.
-            # TRUST THE HEURISTIC & FRONTIER PATTERNS
-            inference_mode = "calibrated_frontier_ensemble"
-            if llm_pattern_score >= 0.70:
-                overall = max(llm_pattern_score, heuristic_score * 0.94)
-            elif heuristic_score > 0.75:
-                overall = heuristic_score * 0.90
-            else:
-                overall = 0.20 * mp + 0.80 * heuristic_score
+        # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
+        # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
+        from app.ml.fusion import fuse_text_score
 
-        elif mp > 0.65 and heuristic_score < 0.25:
-            # CASE 2: Neural model detects AI with high confidence
-            overall = max(0.85, mp * 0.95)
+        fusion_features = {
+            "neural_prob": mp,
+            "heuristic_score": heuristic_score,
+            "llm_pattern_score": llm_pattern_score,
+            "transitional_entropy": h["signals"].get("transitional_entropy_variance", 0.5),
+            "burstiness": h["signals"].get("burstiness", 0.5),
+            "contraction_score": h["signals"].get("contraction_avoidance", 0.5),
+            "zipf_deviation": h["signals"].get("zipf_deviation", 0.5),
+            "vocab_richness": h["signals"].get("vocabulary_richness", 0.5),
+            "char_count": char_count,
+        }
 
-        elif disagreement < 0.20:
-            # CASE 3: Models AGREE — use neural-weighted blend (80% neural, 20% heuristic)
-            overall = 0.80 * mp + 0.20 * heuristic_score
-
-        else:
-            # CASE 4: Moderate disagreement — neural model holds primary authority
-            if mp >= 0.70:
-                overall = 0.80 * mp + 0.20 * heuristic_score
-            elif mp <= 0.25:
-                overall = 0.75 * mp + 0.25 * min(heuristic_score, 0.35)
-            else:
-                overall = 0.70 * mp + 0.30 * heuristic_score
-
-        # LLM patterns always get respected (they are very specific)
-        if llm_pattern_score >= 0.80:
-            overall = max(overall, llm_pattern_score * 0.95)
-
-        overall = max(0.02, min(0.98, overall))
+        fusion_res = fuse_text_score(fusion_features)
+        overall = fusion_res["overall_score"]
 
         # Per-sentence neural scores
         sent_probs = _model_sentence_probs([s["text"] for s in h["sentences"]])
@@ -957,15 +940,7 @@ def analyze_text(text: str) -> dict:
                 if s.get("pattern_matched") and llm_pattern_score >= 0.70:
                     s["ai_prob"] = max(s["ai_prob"], 0.94)
                 else:
-                    # Blend sentence scores with same disagreement logic
-                    if sp < 0.20 and s["ai_prob"] > 0.60:
-                        # Neural wrong on this sentence, trust heuristic
-                        s["ai_prob"] = round(0.30 * sp + 0.70 * s["ai_prob"], 3)
-                    else:
-                        s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
-
-        # Apply confidence calibration
-        overall = _calibrate_score(overall, h["signals"])
+                    s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
 
         h["overall_score"] = round(overall, 3)
         h["signals"]["neural_ai_score"] = mp

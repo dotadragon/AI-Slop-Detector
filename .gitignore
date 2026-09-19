@@ -2,7 +2,9 @@
 *.db*
 *.sqlite*
 keys/
-Model/
+Model/*
+!Model/fusion/
+!Model/model_manifest.json
 models/
 uploads/
 __pycache__/

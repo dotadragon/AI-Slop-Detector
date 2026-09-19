@@ -1,0 +1,1 @@
+hey man, i just checked the logs and the server looks fine now. not really sure what happened earlier with the redis connection, but a simple restart fixed it. let me know if it crashes again.

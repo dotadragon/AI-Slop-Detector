@@ -412,21 +412,34 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
         top_quartile_mean = float(np.mean(sorted_scores[:top_k]))
         global_mean = float(np.mean(scores))
 
-        # 40% Peak + 40% Top-Quartile + 20% Global Mean
-        overall = round(0.40 * peak_threat + 0.40 * top_quartile_mean + 0.20 * global_mean, 3)
+        # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
+        # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
+        from app.ml.fusion import fuse_video_score
 
-        # SynthID or strong generative watermark lock
-        if any_synthid_detected and not is_screen_rec:
-            overall = max(overall, 0.85)
-        elif peak_threat >= 0.80 and sum(1 for s in scores if s >= 0.60) >= 2 and not is_screen_rec:
-            overall = max(overall, 0.80)
-        elif is_screen_rec:
-            # If screen recording and no deepfake face detected, clamp to authentic human content
-            has_deepfake_face = any(f.get("face_deepfake_score") and f["face_deepfake_score"] >= 0.50 for f in frame_data)
-            if not has_deepfake_face:
-                overall = min(overall, 0.05)
+        has_deepfake_face = any(f.get("face_deepfake_score") and f["face_deepfake_score"] >= 0.50 for f in frame_data)
+        max_face_score = max([f.get("face_deepfake_score") or 0.0 for f in frame_data] or [0.0])
+        avg_flicker = float(np.mean([f.get("temporal_flicker", 0.0) for f in frame_data])) if frame_data else 0.0
+        avg_jitter = float(np.mean([f.get("temporal_jitter", 0.0) for f in frame_data])) if frame_data else 0.0
+
+        fusion_features = {
+            "peak_threat": peak_threat,
+            "top_quartile_mean": top_quartile_mean,
+            "global_mean": global_mean,
+            "is_screen_rec": 1.0 if is_screen_rec else 0.0,
+            "has_deepfake_face": 1.0 if has_deepfake_face else 0.0,
+            "max_face_score": max_face_score,
+            "temporal_flicker": avg_flicker,
+            "temporal_jitter": avg_jitter,
+            "synthid_detected": 1.0 if any_synthid_detected else 0.0,
+            "high_threat_frame_count": sum(1 for s in scores if s >= 0.60),
+        }
+
+        fusion_res = fuse_video_score(fusion_features)
+        overall = fusion_res["overall_score"]
     else:
-        overall = 0.5
+        from app.ml.fusion import fuse_video_score
+        fusion_res = fuse_video_score({})
+        overall = fusion_res["overall_score"]
 
     yield {
         "type": "complete",

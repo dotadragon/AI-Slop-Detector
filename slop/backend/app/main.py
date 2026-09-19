@@ -27,6 +27,30 @@ def configure_error_tracking() -> None:
         logger.warning("sentry_dsn_configured_but_sentry_sdk_not_installed")
 
 
+def _verify_models_on_startup() -> None:
+    # ponytail: Rule 1 & Stage B6 real forward pass verification on startup
+    try:
+        import io
+        from PIL import Image
+        from app.ml.text_detector import analyze_text
+        from app.ml.image_detector import analyze_image_bytes
+
+        text_res = analyze_text("SLOP startup verification pass.")
+        if "overall_score" not in text_res:
+            raise RuntimeError("Text detector failed to return overall_score")
+
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 64), color=(100, 100, 100)).save(buf, format="JPEG")
+        img_res = analyze_image_bytes(buf.getvalue())
+        if "overall_score" not in img_res:
+            raise RuntimeError("Image detector failed to return overall_score")
+
+        logger.info("models_verified_on_startup", text_status="ok", image_status="ok")
+    except Exception as e:
+        logger.critical("model_startup_verification_failed", error=str(e))
+        raise RuntimeError(f"SLOP Model Startup Verification Failed: {e}") from e
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ponytail: Rung 1 direct SQLite schema creation on startup, zero alembic overhead
@@ -36,6 +60,7 @@ async def lifespan(app: FastAPI):
     purged = cleanup_expired_uploads()
     if purged > 0:
         logger.info("stale_uploads_purged_on_startup", count=purged)
+    _verify_models_on_startup()
     logger.info("startup_complete", app=settings.app_name, env=settings.app_env)
     yield
 
