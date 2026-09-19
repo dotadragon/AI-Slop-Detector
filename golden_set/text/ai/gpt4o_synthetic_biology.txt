@@ -1,0 +1,1 @@
+Synthetic biology enables the rational re-engineering of metabolic pathways to synthesize novel therapeutics. CRISPR-Cas nucleases facilitate targeted genomic alterations with high fidelity. Furthermore, it is vital to delve into biosafety protocols to mitigate off-target cleavage. In summary, computational protein design accelerates biomanufacturing pipelines.

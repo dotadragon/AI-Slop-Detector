@@ -25,6 +25,8 @@ class DetectionResultOut(BaseModel):
     frame_scores: list[dict] | None = None
     heatmap_b64: str | None = None
     model_hint: str | None = None
+    confidence_band: str | None = None
+    confidence_range: list[float] | None = None
 
 
 class AnalyzeResponse(BaseModel):

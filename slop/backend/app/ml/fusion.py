@@ -32,16 +32,21 @@ def _sigmoid(x: float) -> float:
 
 
 def _confidence_band(score: float) -> str:
-    if score >= 0.80:
-        return "HIGH_AI"
+    if score >= 0.85:
+        return "DEFINITELY_AI"
     elif score >= 0.60:
-        return "MODERATE_AI"
+        return "LIKELY_AI"
     elif score >= 0.40:
         return "UNCERTAIN"
-    elif score >= 0.20:
+    elif score >= 0.15:
         return "LIKELY_HUMAN"
     else:
-        return "HIGH_HUMAN"
+        return "DEFINITELY_HUMAN"
+
+
+def _confidence_range(score: float, disagreement: float = 0.0) -> list[float]:
+    margin = 0.04 + min(0.10, max(0.0, float(disagreement)) * 0.20)
+    return [round(max(0.0, score - margin), 3), round(min(1.0, score + margin), 3)]
 
 
 def _find_fusion_model_path(modality: str) -> Path | None:
@@ -94,6 +99,8 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
     sig_detected = float(features.get("signature_detected", 0.0))
     sig_conf = float(features.get("signature_confidence", 0.0))
     c2pa_verified = float(features.get("c2pa_verified", 0.0))
+    clip_probe = features.get("clip_probe_score")
+    npr = features.get("npr_score")
 
     if model_data is not None:
         # Logistic regression inference
@@ -101,7 +108,7 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
         intercept = float(model_data.get("intercept", 0.0))
         logit = intercept
         contributions = {}
-        for feat_name, feat_val in [
+        feature_tuples = [
             ("best_neural", best_neural if best_neural is not None else 0.5),
             ("heuristic_score", heuristic),
             ("cfa_score", cfa),
@@ -116,7 +123,17 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
             ("signature_detected", sig_detected),
             ("signature_confidence", sig_conf),
             ("c2pa_verified", c2pa_verified),
-        ]:
+        ]
+        if clip_probe is None and "clip_probe_score" in w:
+            clip_probe = best_neural if best_neural is not None else heuristic
+        if npr is None and "npr_score" in w:
+            npr = best_neural if best_neural is not None else heuristic
+        if clip_probe is not None and "clip_probe_score" in w:
+            feature_tuples.append(("clip_probe_score", float(clip_probe)))
+        if npr is not None and "npr_score" in w:
+            feature_tuples.append(("npr_score", float(npr)))
+
+        for feat_name, feat_val in feature_tuples:
             coef = float(w.get(feat_name, 0.0))
             contrib = coef * float(feat_val)
             logit += contrib
@@ -124,36 +141,30 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
 
         score = _sigmoid(logit)
     else:
-        # Calibrated Neural-First consensus model
         contributions = {}
         if best_neural is not None:
             bn = float(best_neural)
             contributions["best_neural"] = bn
 
+            disagreement = abs(heuristic - bn)
+            # Consensus logic: Neural model holds primary authority (80%+)
             if bn >= 0.70:
-                # 85% Neural Authority on high-confidence generative detection
-                raw = 0.85 * bn + 0.15 * max(heuristic, bn * 0.90)
-                score = 0.70 + (raw - 0.70) * 0.95 / 0.30 if raw >= 0.70 else raw
-            elif is_diagram > 0.5 and bn < 0.70:
-                # Authentic diagram suppression
-                score = 0.030 + 0.025 * min(bn, 0.50)
-            elif is_real_cam > 0.5 and bn < 0.50:
-                # Authentic camera sensor suppression
-                score = min(0.08, 0.45 * bn + 0.35 * min(heuristic, 0.12) + 0.20 * min(cfa, 0.20))
-            elif is_anime > 0.5:
-                score = max(0.92, bn)
-            elif bn >= 0.50:
-                score = 0.80 * bn + 0.20 * max(heuristic, bn * 0.85)
-            elif bn <= 0.25:
-                score = 0.80 * bn + 0.20 * min(heuristic, 0.20)
+                score = bn * 0.90 + heuristic * 0.10
+            elif bn < 0.35:
+                # Authentic photo or diagram suppression
+                if is_diagram > 0.5 or is_real_cam > 0.5:
+                    score = min(bn, 0.05)
+                elif heuristic < 0.25:
+                    score = 0.80 * bn + 0.20 * heuristic
+                else:
+                    score = 0.50 * bn + 0.50 * heuristic
             else:
                 score = 0.70 * bn + 0.30 * heuristic
         else:
-            # Fallback if ViT unavailable
-            score = 0.35 * heuristic + 0.25 * cfa + 0.25 * noise + 0.15 * meta_risk
+            score = heuristic
 
-        # Factor in digital signatures
-        if sig_detected > 0.5 and sig_conf > 0.70 and is_diagram <= 0.5 and is_real_cam <= 0.5:
+        # Digital signature corroboration
+        if sig_detected > 0.5 and sig_conf > 0.60:
             score = max(score, sig_conf)
 
         # C2PA provenance authentication
@@ -161,10 +172,12 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
             score *= 0.15
 
     final_score = round(_clamp01(score), 3)
+    disagreement = abs(float(best_neural if best_neural is not None else 0.5) - heuristic)
 
     return {
         "overall_score": final_score,
         "confidence_band": _confidence_band(final_score),
+        "confidence_range": _confidence_range(final_score, disagreement),
         "primary_signal": "neural_vision_transformer" if (best_neural is not None and best_neural >= 0.50) else "forensic_heuristics",
         "contributions": contributions,
     }
@@ -190,13 +203,15 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
     zipf = float(features.get("zipf_deviation", 0.5))
     vocab = float(features.get("vocab_richness", 0.5))
     char_count = int(features.get("char_count", 500))
+    bino_prob = features.get("binoculars_ai_prob")
+    fast_prob = features.get("fast_detectgpt_ai_prob")
 
     if model_data is not None:
         w = model_data.get("weights", {})
         intercept = float(model_data.get("intercept", 0.0))
         logit = intercept
         contributions = {}
-        for feat_name, feat_val in [
+        feature_tuples = [
             ("neural_prob", neural_prob if neural_prob is not None else 0.5),
             ("heuristic_score", heuristic),
             ("llm_pattern_score", llm_pattern),
@@ -205,7 +220,17 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             ("contraction_score", contraction),
             ("zipf_deviation", zipf),
             ("vocab_richness", vocab),
-        ]:
+        ]
+        if bino_prob is None and "binoculars_ai_prob" in w:
+            bino_prob = neural_prob if neural_prob is not None else heuristic
+        if fast_prob is None and "fast_detectgpt_ai_prob" in w:
+            fast_prob = neural_prob if neural_prob is not None else heuristic
+        if bino_prob is not None and "binoculars_ai_prob" in w:
+            feature_tuples.append(("binoculars_ai_prob", float(bino_prob)))
+        if fast_prob is not None and "fast_detectgpt_ai_prob" in w:
+            feature_tuples.append(("fast_detectgpt_ai_prob", float(fast_prob)))
+
+        for feat_name, feat_val in feature_tuples:
             coef = float(w.get(feat_name, 0.0))
             contrib = coef * float(feat_val)
             logit += contrib
@@ -249,10 +274,12 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             score = heuristic
 
     final_score = round(_clamp01(score), 3)
+    disagreement = abs(heuristic - float(neural_prob if neural_prob is not None else 0.5))
 
     return {
         "overall_score": final_score,
         "confidence_band": _confidence_band(final_score),
+        "confidence_range": _confidence_range(final_score, disagreement),
         "primary_signal": "roberta_neural_classifier" if (neural_prob is not None and neural_prob >= 0.50) else "stylometric_forensics",
         "contributions": contributions,
     }
@@ -321,6 +348,8 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
     return {
         "overall_score": final_score,
         "confidence_band": _confidence_band(final_score),
+        "confidence_range": _confidence_range(final_score, abs(peak_threat - global_mean)),
         "primary_signal": "deepfake_face_vit" if has_deepfake > 0.5 else ("swin_generative_diffusion" if final_score >= 0.50 else "authentic_screen_capture"),
         "contributions": contributions,
     }
+

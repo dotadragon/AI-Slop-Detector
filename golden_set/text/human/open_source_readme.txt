@@ -1,0 +1,2 @@
+Quick start guide:
+Clone the repository and run `make setup`. If you're on Arch Linux, you might need to install `libjpeg-turbo` manually because the default package doesn't ship with pkg-config files. Check issue #142 if the build fails with undefined reference to `jpeg_CreateDecompress`. PRs welcome for FreeBSD support!

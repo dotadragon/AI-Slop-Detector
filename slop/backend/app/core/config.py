@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import AnyHttpUrl, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_name: str = "SLOP"
-    frontend_url: AnyHttpUrl = "http://localhost:3000"
+    frontend_url: str = "http://localhost:3000"
     allowed_origins: str = "http://localhost:3000"
 
     database_url: str = "sqlite+aiosqlite:///./slop.db"

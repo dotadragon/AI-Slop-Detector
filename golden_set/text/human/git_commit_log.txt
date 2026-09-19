@@ -1,0 +1,3 @@
+fix(cache): resolve race condition in redis connection pool eviction
+
+Under high concurrency, worker threads weren't releasing closed sockets back to the idle pool, causing file descriptor exhaustion on Linux hosts after ~30 min. Resetting the socket timeout to 5s and ensuring pool.release() runs in a finally block fixes the leak. Tested with 500 concurrent connections.

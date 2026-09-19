@@ -1,0 +1,1 @@
+The reason your regex isn't matching newlines is that dot `.` matches any character except `\n` by default. You need to pass the `re.DOTALL` flag (or `re.S`). For example: `re.search(r'start.*?end', text, re.DOTALL)`. Also be careful with greedy matching if your input string has multiple 'end' tags, or you'll match all the way to the last one.

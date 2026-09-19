@@ -2,55 +2,40 @@
   "version": "1.0",
   "description": "SLOP verified local model weights manifest",
   "models": {
+    "fusion/clip_probe.pkl": {
+      "sha256": "b07ff5c3b25dd003af80a2f57e154e7a61d417811e59d1f0ce9765d3adef513d",
+      "size_bytes": 6345,
+      "size_mb": 0.01
+    },
+    "fusion/image.pkl": {
+      "sha256": "4c0a72b0d26a6e8430cbc4af407f777ccace16e87dedd1f8820ff720d329e1b9",
+      "size_bytes": 521,
+      "size_mb": 0.0
+    },
+    "fusion/text.pkl": {
+      "sha256": "7b34a84decc57ddc913f3db1db82c620cf38518bc786367692cdec210af4c37f",
+      "size_bytes": 398,
+      "size_mb": 0.0
+    },
+    "fusion/video.pkl": {
+      "sha256": "4cc0b14d8d5a9d57ff47631827e12ef90e0c25f642a0223b4bd0c717545102f7",
+      "size_bytes": 356,
+      "size_mb": 0.0
+    },
+    "image/clip_vit_large/merges.txt": {
+      "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+      "size_bytes": 524619,
+      "size_mb": 0.5
+    },
+    "image/clip_vit_large/model.safetensors": {
+      "sha256": "a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb",
+      "size_bytes": 1710540580,
+      "size_mb": 1631.3
+    },
     "image/pytorch_model.bin": {
       "sha256": "f4c14ed23eb1d65b1c6ca7b163f8f91bebcf3a4d8c275296c850c9f1bbd01daf",
       "size_bytes": 347596479,
       "size_mb": 331.49
-    },
-    "text/.cache/huggingface/download/config.json.metadata": {
-      "sha256": "4bd7b383315e6277a35fd6d8d3bb2689fec74d385996428e0bda9cc21bdad063",
-      "size_bytes": 104,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/merges.txt.metadata": {
-      "sha256": "0c0bff6dd5ba692bbb9162c3c20db94ce261854faf90cde4e9cedf3d2de72b12",
-      "size_bytes": 104,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/pytorch_model.bin.lock": {
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "size_bytes": 0,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/Q1p2l2BzM1m6P5jKvr8WTq1TUio=.de2c7f8f590b0acd7866b18d5561b9d27e82d31a3dc24a8909658d2a8149ed94.incomplete": {
-      "sha256": "147a7ef0c4ec980f8f859e09269bb67c639b01f7c79cc09e46b47ef175ba9527",
-      "size_bytes": 241172480,
-      "size_mb": 230.0
-    },
-    "text/.cache/huggingface/download/README.md.metadata": {
-      "sha256": "b21e9890ea1596a47d6e959b7c990210d9061f3be5ba0cf2ae87dd684f725720",
-      "size_bytes": 103,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/special_tokens_map.json.metadata": {
-      "sha256": "b77d3d718415fbafe5075179f3fdae2464e71c5489120b549de66fc7f90d62fb",
-      "size_bytes": 104,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/tokenizer.json.metadata": {
-      "sha256": "c6eb26a98b099f47788f348973682841e5ab43c4896feb58da44798d23f9aa8b",
-      "size_bytes": 104,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/tokenizer_config.json.metadata": {
-      "sha256": "e504662754bef50add5bc37ffd35578d5de4cd5a0112e215ec52425798c86ddf",
-      "size_bytes": 104,
-      "size_mb": 0.0
-    },
-    "text/.cache/huggingface/download/vocab.json.metadata": {
-      "sha256": "fed70685bc5eeb992a90efcb84484c0bb68ed6816d2dab8422bc7f4987734f28",
-      "size_bytes": 104,
-      "size_mb": 0.0
     },
     "text/merges.txt": {
       "sha256": "fe36cab26d4f4421ed725e10a2e9ddb7f799449c603a96e7f29b5a3c82a95862",
@@ -61,6 +46,36 @@
       "sha256": "de2c7f8f590b0acd7866b18d5561b9d27e82d31a3dc24a8909658d2a8149ed94",
       "size_bytes": 498657517,
       "size_mb": 475.56
+    },
+    "text/qwen2.5_0.5b/LICENSE": {
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+      "size_bytes": 11343,
+      "size_mb": 0.01
+    },
+    "text/qwen2.5_0.5b/merges.txt": {
+      "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "size_bytes": 1671839,
+      "size_mb": 1.59
+    },
+    "text/qwen2.5_0.5b/model.safetensors": {
+      "sha256": "88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342",
+      "size_bytes": 988097824,
+      "size_mb": 942.32
+    },
+    "text/qwen2.5_0.5b/README.md": {
+      "sha256": "3c93cbc9f60417337fcbf093da872007586b9d886b0f0187f21aec35b869616a",
+      "size_bytes": 3850,
+      "size_mb": 0.0
+    },
+    "text/qwen2.5_0.5b_instruct/merges.txt": {
+      "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "size_bytes": 1671839,
+      "size_mb": 1.59
+    },
+    "text/qwen2.5_0.5b_instruct/model.safetensors": {
+      "sha256": "fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe",
+      "size_bytes": 988097824,
+      "size_mb": 942.32
     },
     "text/README.md": {
       "sha256": "cfe39d6909fc28e5b052f246aee702dfaf5537130ad8a939d5b88f76319aafa9",

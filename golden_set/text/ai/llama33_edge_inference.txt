@@ -1,0 +1,1 @@
+Deploying deep neural networks on constrained edge devices necessitates aggressive model compression techniques. Weight quantization to 4-bit integer representations preserves perplexity while significantly reducing memory bandwidth requirements. In conclusion, structured pruning combined with flash-attention kernels unlocks real-time throughput on commodity embedded NPUs.

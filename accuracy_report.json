@@ -14,37 +14,37 @@
       {
         "file": "chatgpt_essay.txt",
         "truth": "AI",
-        "score": 0.679,
+        "score": 0.751,
         "pred": "AI"
       },
       {
-        "file": "claude_delve.txt",
+        "file": "claude35_climate_modeling.txt",
         "truth": "AI",
-        "score": 0.971,
+        "score": 0.727,
         "pred": "AI"
       },
       {
-        "file": "deepseek_reasoning.txt",
+        "file": "claude35_system_architecture.txt",
         "truth": "AI",
-        "score": 0.691,
+        "score": 0.798,
         "pred": "AI"
+      },
+      {
+        "file": "arxiv_abstract_2019.txt",
+        "truth": "HUMAN",
+        "score": 0.368,
+        "pred": "HUMAN"
       },
       {
         "file": "casual_chat.txt",
         "truth": "HUMAN",
-        "score": 0.323,
+        "score": 0.231,
         "pred": "HUMAN"
       },
       {
         "file": "code_review_comment.txt",
         "truth": "HUMAN",
-        "score": 0.362,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "dev_notes.txt",
-        "truth": "HUMAN",
-        "score": 0.284,
+        "score": 0.235,
         "pred": "HUMAN"
       }
     ]
@@ -63,25 +63,25 @@
       {
         "file": "media_1789755920467.png",
         "truth": "AI",
-        "score": 0.937,
+        "score": 0.974,
         "pred": "AI"
       },
       {
         "file": "media_1789757571085.jpg",
         "truth": "AI",
-        "score": 0.965,
+        "score": 0.978,
         "pred": "AI"
       },
       {
-        "file": "media_1789756044612.jpg",
+        "file": "camera_sensor_cfa_1.jpg",
         "truth": "HUMAN_PHOTO",
-        "score": 0.006,
+        "score": 0.026,
         "pred": "HUMAN"
       },
       {
         "file": "media_1789756069231.png",
         "truth": "HUMAN_DIAGRAM",
-        "score": 0.007,
+        "score": 0.011,
         "pred": "HUMAN"
       }
     ]

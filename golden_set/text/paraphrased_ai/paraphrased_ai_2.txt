@@ -1,0 +1,1 @@
+When you're building a distributed database, you quickly realize you can't have both rock-solid consistency and 100% availability during network splits. Choosing between Raft consensus and gossip mechanisms always comes down to how much cross-region latency your services can tolerate.

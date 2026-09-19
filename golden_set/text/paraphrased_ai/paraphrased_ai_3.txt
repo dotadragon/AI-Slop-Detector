@@ -1,0 +1,1 @@
+Moving machine learning models to small edge hardware requires cutting down model size aggressively. Quantizing weights down to 4-bit integers saves massive memory bandwidth without tanking output accuracy, making real-time inference on embedded chips totally viable.

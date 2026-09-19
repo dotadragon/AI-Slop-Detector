@@ -1,0 +1,1 @@
+hey everyone, heads up that staging will be down for about 20 mins around 4pm EST while we migrate the postgres instance to a larger disk. please push any pending test branches before then so we don't end up with weird lock timeouts during the vacuum analyze step. ping me if you need it kept up longer.

@@ -667,6 +667,16 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     # v3.4: PRNU (Photo-Response Non-Uniformity) sensor noise floor map
     prnu_b64 = generate_prnu_noise_map(image)
 
+    # v3.5: NPR (Neighboring Pixel Relationships) extractor
+    from app.ml.npr_extractor import compute_npr_features
+    npr_res = compute_npr_features(image)
+    npr_score = npr_res.get("npr_score", 0.5)
+
+    # v3.5: CLIP-ViT-L/14 linear probe (Ojha et al. universal fake detector)
+    from app.ml.clip_probe import compute_clip_probe_score
+    clip_res = compute_clip_probe_score(image)
+    clip_score = clip_res.get("clip_probe_score", 0.5)
+
     # ===== v3.2: MULTI-MODALITY SCORING =====
     best_neural = model_prob
     if multi_crop_prob is not None and model_prob is not None:
@@ -693,10 +703,15 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
         "signature_detected": 1.0 if sig_info["detected"] else 0.0,
         "signature_confidence": float(sig_info.get("confidence", 0.0)),
         "c2pa_verified": 1.0 if c2pa["verified"] else 0.0,
+        "clip_probe_score": clip_score,
+        "npr_score": npr_score,
     }
 
     fusion_res = fuse_image_score(fusion_features)
     overall = fusion_res["overall_score"]
+    conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
+    conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
+
     logger.info(
         "image_forensics_scored",
         extra={
@@ -724,22 +739,42 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     if sig_info["detected"] and sig_info["confidence"] > 0.70 and not is_diagram and not is_real_camera:
         hint = f"Detected {sig_info['signature_type']} ({sig_info['generator']}). " + hint
 
+    # Confidence-gated attribution:
+    # Authentic labels (diagram, camera photo) are preserved for forensic explainability.
+    # Synthetic generator attributions (Midjourney, DALL-E, SD) are gated to overall >= 0.60.
+    sig_gen = sig_info.get("generator") or ""
+    is_authentic_label = any(kw in sig_gen.lower() for kw in ("authentic", "diagram", "camera", "clean"))
+    if is_authentic_label:
+        attr_gen = sig_gen
+        attr_conf = sig_info.get("generator_confidence", 0.0)
+    elif overall >= 0.60:
+        attr_gen = sig_gen if sig_gen else None
+        attr_conf = sig_info.get("generator_confidence", 0.0)
+    else:
+        attr_gen = None
+        attr_conf = 0.0
+
     signals = {
         "compression_artifact_score": ela,
         "frequency_artifact_score": fft,
         "noise_uniformity_score": noise,
         "cfa_score": cfa,                    # v3.0
         "dct_block_score": dct,              # v3.0
+        "npr_score": npr_score,              # v3.5
+        "npr_anisotropy": npr_res.get("anisotropy_ratio", 1.0),
+        "clip_probe_score": clip_score,      # v3.5
         "metadata_risk": exif["metadata_risk"],
         "heuristic_score": heuristic,
         "exif_flags": exif["flags"],
         "file_name": file_name,
         "provenance": "verified" if c2pa["verified"] else "none",
-        "generator_attribution": sig_info["generator"],
-        "generator_confidence": sig_info["generator_confidence"],
+        "generator_attribution": attr_gen,
+        "generator_confidence": attr_conf,
         "is_diagram": is_diagram,
         "is_real_camera": is_real_camera,
         "prnu_sensor_residual_active": True,
+        "confidence_band": conf_band,
+        "confidence_range": conf_range,
     }
     if best_neural is not None:
         signals["model_ai_probability"] = model_prob
@@ -755,17 +790,19 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
 
     result = {
         "overall_score": round(overall, 3),
+        "confidence_band": conf_band,
+        "confidence_range": conf_range,
         "signals": signals,
         "heatmap_b64": ela_heatmap,
         "prnu_heatmap_b64": prnu_b64,
         "model_hint": hint,
         "digital_signature": sig_info,
         "generator_attribution": {
-            "generator": sig_info["generator"],
-            "confidence": sig_info["generator_confidence"],
-            "details": sig_info["details"],
-            "signature_type": sig_info["signature_type"],
-            "bounding_box": sig_info.get("bounding_box"),
+            "generator": attr_gen,
+            "confidence": attr_conf,
+            "details": sig_info["details"] if attr_gen else {},
+            "signature_type": sig_info["signature_type"] if attr_gen else None,
+            "bounding_box": sig_info.get("bounding_box") if attr_gen else None,
         },
     }
 

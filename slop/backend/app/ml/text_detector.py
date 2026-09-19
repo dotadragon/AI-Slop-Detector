@@ -900,6 +900,14 @@ def analyze_text(text: str) -> dict:
     except Exception:
         model_id = "openai-community/roberta-base-openai-detector"
 
+    # v3.5: Binoculars & Fast-DetectGPT zero-shot signals
+    from app.ml.binoculars import compute_binoculars_and_curvature
+    bino_res = compute_binoculars_and_curvature(clean_text)
+    bino_prob = bino_res.get("binoculars_ai_prob")
+    fast_prob = bino_res.get("fast_detectgpt_ai_prob")
+    bino_score = bino_res.get("binoculars_score")
+    fast_z = bino_res.get("fast_detectgpt_z")
+
     if mp is not None:
         # v3.0: Smart ensemble blending with disagreement detection
         char_count = len(text.strip())
@@ -930,10 +938,17 @@ def analyze_text(text: str) -> dict:
             "zipf_deviation": h["signals"].get("zipf_deviation", 0.5),
             "vocab_richness": h["signals"].get("vocabulary_richness", 0.5),
             "char_count": char_count,
+            "binoculars_score": bino_score,
+            "binoculars_ai_prob": bino_prob,
+            "fast_detectgpt_z": fast_z,
+            "fast_detectgpt_ai_prob": fast_prob,
         }
 
         fusion_res = fuse_text_score(fusion_features)
         overall = fusion_res["overall_score"]
+        conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
+        conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
+
         logger.info(
             "text_forensics_scored",
             extra={
@@ -954,6 +969,8 @@ def analyze_text(text: str) -> dict:
                     s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
 
         h["overall_score"] = round(overall, 3)
+        h["confidence_band"] = conf_band
+        h["confidence_range"] = conf_range
         h["signals"]["neural_ai_score"] = mp
         h["signals"]["model_id"] = model_id
         h["signals"]["inference_mode"] = inference_mode
@@ -961,20 +978,55 @@ def analyze_text(text: str) -> dict:
         h["signals"]["neural_weight"] = neural_w
         h["signals"]["heuristic_weight"] = heuristic_w
         h["signals"]["disagreement"] = round(disagreement, 3)
+        h["signals"]["confidence_band"] = conf_band
+        h["signals"]["confidence_range"] = conf_range
+        if bino_res.get("available"):
+            h["signals"]["binoculars_score"] = bino_score
+            h["signals"]["binoculars_ai_prob"] = bino_prob
+            h["signals"]["fast_detectgpt_z"] = fast_z
+            h["signals"]["fast_detectgpt_ai_prob"] = fast_prob
         h["model_hint"] = (
-            f"v3.4 Ensemble ({inference_mode}): RoBERTa neural ({int(neural_w*100)}%) + "
+            f"v3.5 Ensemble ({inference_mode}): RoBERTa neural ({int(neural_w*100)}%) + "
             f"frontier stylometrics ({int(heuristic_w*100)}%) with "
-            f"Binoculars transitional entropy & 5-LLM attribution."
+            f"Binoculars & Fast-DetectGPT verification."
         )
     else:
-        # Heuristic-only fallback — still apply calibration
-        overall = _calibrate_score(h["overall_score"], h["signals"])
+        # Heuristic-only fallback — route through single score authority
+        from app.ml.fusion import fuse_text_score
+        fusion_features = {
+            "neural_prob": None,
+            "heuristic_score": h["overall_score"],
+            "llm_pattern_score": llm_pattern_score,
+            "transitional_entropy": h["signals"].get("transitional_entropy_variance", 0.5),
+            "burstiness": h["signals"].get("burstiness", 0.5),
+            "contraction_score": h["signals"].get("contraction_avoidance", 0.5),
+            "zipf_deviation": h["signals"].get("zipf_deviation", 0.5),
+            "vocab_richness": h["signals"].get("vocabulary_richness", 0.5),
+            "char_count": len(clean_text),
+            "binoculars_score": bino_score,
+            "binoculars_ai_prob": bino_prob,
+            "fast_detectgpt_z": fast_z,
+            "fast_detectgpt_ai_prob": fast_prob,
+        }
+        fusion_res = fuse_text_score(fusion_features)
+        overall = fusion_res["overall_score"]
+        conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
+        conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
         h["overall_score"] = round(overall, 3)
+        h["confidence_band"] = conf_band
+        h["confidence_range"] = conf_range
+        h["signals"]["confidence_band"] = conf_band
+        h["signals"]["confidence_range"] = conf_range
         h["signals"]["inference_mode"] = "heuristic_fallback"
         h["model_hint"] = (
-            "v3.0 Heuristic-only (12 stylometric signals + LLM pattern libraries). "
+            "v3.5 Heuristic-only (12 stylometric signals + LLM pattern libraries). "
             "Install torch for neural accuracy."
         )
+
+    # Confidence-gated LLM attribution (Rule F)
+    if h["overall_score"] < 0.60 and attribution:
+        attribution["detected_llm"] = None
+        attribution["confidence"] = 0.0
 
     # Always include LLM attribution
     h["llm_attribution"] = attribution
