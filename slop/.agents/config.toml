@@ -1,0 +1,12 @@
+[project]
+name = "SLOP"
+workflow = "launch-readiness"
+
+[skills]
+antigravity = "../antigravity/skills"
+shared_skills = "../skills/skills"
+
+[ruflo]
+source = "../.external/ruflo-shallow"
+mode = "codex-executes-ruflo-coordinates"
+primary_plugins = ["ruflo-workflows", "ruflo-observability", "ruflo-security-audit", "ruflo-browser"]

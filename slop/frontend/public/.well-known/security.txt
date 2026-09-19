@@ -1,0 +1,4 @@
+Contact: mailto:security@slop.dev
+Preferred-Languages: en
+Policy: https://slop.dev/security
+Expires: 2027-03-31T00:00:00.000Z
