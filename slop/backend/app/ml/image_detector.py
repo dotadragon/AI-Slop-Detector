@@ -697,6 +697,14 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
 
     fusion_res = fuse_image_score(fusion_features)
     overall = fusion_res["overall_score"]
+    logger.info(
+        "image_forensics_scored",
+        extra={
+            "raw_neural": best_neural,
+            "fusion_features": fusion_features,
+            "final_score": overall,
+        },
+    )
 
     if c2pa["verified"]:
         hint = "✓ C2PA verified provenance. "

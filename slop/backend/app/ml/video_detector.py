@@ -436,6 +436,14 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
 
         fusion_res = fuse_video_score(fusion_features)
         overall = fusion_res["overall_score"]
+        logger.info(
+            "video_forensics_scored",
+            extra={
+                "raw_neural": peak_threat,
+                "fusion_features": fusion_features,
+                "final_score": overall,
+            },
+        )
     else:
         from app.ml.fusion import fuse_video_score
         fusion_res = fuse_video_score({})

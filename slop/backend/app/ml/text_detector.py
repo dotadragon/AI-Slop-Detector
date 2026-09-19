@@ -8,6 +8,7 @@ SLOP Text Detector v3.0 — Production-grade AI text detection.
 - Added LLM attribution (identifies WHICH model wrote the text)
 """
 
+import logging
 import math
 import re
 from collections import Counter
@@ -17,6 +18,8 @@ from statistics import mean, pstdev
 
 import unicodedata
 import bleach
+
+logger = logging.getLogger(__name__)
 
 MODEL_CACHE_DIR = str(Path(__file__).resolve().parent.parent.parent / "models")
 
@@ -931,6 +934,14 @@ def analyze_text(text: str) -> dict:
 
         fusion_res = fuse_text_score(fusion_features)
         overall = fusion_res["overall_score"]
+        logger.info(
+            "text_forensics_scored",
+            extra={
+                "raw_neural": mp,
+                "fusion_features": fusion_features,
+                "final_score": overall,
+            },
+        )
 
         # Per-sentence neural scores
         sent_probs = _model_sentence_probs([s["text"] for s in h["sentences"]])
