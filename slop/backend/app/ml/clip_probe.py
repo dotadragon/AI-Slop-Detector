@@ -62,7 +62,7 @@ def evict_clip_models() -> None:
         logger.warning(f"Error evicting CLIP models: {e}")
 
 
-def load_clip_probe(device: str | None = None):
+def load_clip_probe(device: str | None = None) -> tuple[Any, Any, Any, str]:
     """Loads CLIP vision model and linear probe weights."""
     global _CLIP_PROCESSOR, _CLIP_MODEL, _CLIP_PROBE_WEIGHTS, _ACTIVE_DEVICE
 
@@ -71,7 +71,7 @@ def load_clip_probe(device: str | None = None):
     from app.core.config import settings
 
     target_device = device or settings.compute_device
-    if _CLIP_MODEL is not None and _ACTIVE_DEVICE == target_device:
+    if _CLIP_MODEL is not None and _CLIP_PROCESSOR is not None and _ACTIVE_DEVICE == target_device:
         return _CLIP_PROCESSOR, _CLIP_MODEL, _CLIP_PROBE_WEIGHTS, target_device
 
     clip_dir = _find_clip_dir()
@@ -83,12 +83,20 @@ def load_clip_probe(device: str | None = None):
     dtype = torch.float16 if target_device == "cuda" else torch.float32
 
     proc = AutoProcessor.from_pretrained(source, local_files_only=True)
-    model = CLIPVisionModelWithProjection.from_pretrained(
-        source,
-        torch_dtype=dtype,
-        local_files_only=True,
-    )
-    model.to(target_device).eval()
+    # Suppress unexpected text_model / projection key warnings during loading
+    clip_logger = logging.getLogger("transformers.modeling_utils")
+    orig_level = clip_logger.level
+    try:
+        clip_logger.setLevel(logging.ERROR)
+        model: Any = CLIPVisionModelWithProjection.from_pretrained(
+            source,
+            dtype=dtype,
+            local_files_only=True,
+            ignore_mismatched_sizes=True,
+        )
+    finally:
+        clip_logger.setLevel(orig_level)
+    model.to(torch.device(target_device)).eval()
 
     # Load trained probe weights if available
     probe_path = Path(__file__).resolve().parent.parent.parent.parent / "Model" / "fusion" / "clip_probe.pkl"

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.get("/{job_id}/status")
-async def status(job_id: str, session: AsyncSession = Depends(get_session)):
+async def status(job_id: str, request: Request, session: AsyncSession = Depends(get_session), user: User | None = Depends(optional_user)):
     try:
         uuid_obj = UUID(job_id)
     except ValueError:
@@ -25,6 +25,15 @@ async def status(job_id: str, session: AsyncSession = Depends(get_session)):
     job = await session.get(Job, uuid_obj)
     if not job:
         return {"status": "missing", "progress": 0}
+
+    client_ip = request_ip(request)
+    if user and job.user_id and job.user_id != user.id:
+        return {"status": "forbidden", "progress": 0}
+    elif not user and job.user_id is not None:
+        return {"status": "unauthorized", "progress": 0}
+    elif not user and job.ip_address and job.ip_address != client_ip:
+        return {"status": "forbidden", "progress": 0}
+
     return {
         "status": job.status,
         "progress": token_store.progress.get(job_id, 100 if job.status == "completed" else 0),

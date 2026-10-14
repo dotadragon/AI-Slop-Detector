@@ -14,6 +14,9 @@ Applies to: Gemini 3.8 High (or any model) operating inside Antigravity on this 
    c. NEVER "fix forward" blindly on a regression without the user's explicit go-ahead.
 5. AFTER any edit anywhere in `slop/backend/`: run `pytest -v slop/backend/tests` and report
    the exact pass/fail count. Do not declare a task "done" if any test fails.
+6. AFTER any edit to image heuristics, gate thresholds, or image fusion weights:
+   run `python eval_image_regression_gate.py --max-flips 0`
+   and verify 0 verdict flips versus the committed baseline. Block merge/commit if flips > 0.
 
 ## RULE 1 — Zero-Mock (unchanged, reaffirmed)
 - Never mock inference outputs, hardcode scores, or silently catch-and-suppress exceptions

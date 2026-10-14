@@ -8,6 +8,7 @@ SLOP Text Detector v3.0 — Production-grade AI text detection.
 - Added LLM attribution (identifies WHICH model wrote the text)
 """
 
+import ast
 import logging
 import math
 import re
@@ -16,6 +17,7 @@ from functools import lru_cache
 from pathlib import Path
 from statistics import mean, pstdev
 
+from typing import Any, cast
 import unicodedata
 import bleach
 
@@ -55,7 +57,7 @@ def _normalize_and_sanitize_text(text: str) -> str:
     """
     normalized = unicodedata.normalize("NFKC", text)
     cleaned = "".join(ch for ch in normalized if ch not in ZERO_WIDTH_CHARS)
-    return bleach.clean(cleaned, tags=[], strip=True)
+    return str(cast(Any, bleach).clean(cleaned, tags=[], strip=True))
 
 def _detect_prompt_injection(text: str) -> dict:
     """
@@ -306,7 +308,7 @@ def _llm_attribution(text: str) -> dict:
         return {"detected_llm": None, "confidence": 0.0, "scores": scores,
                 "total_pattern_matches": 0, "all_patterns": []}
 
-    best_llm = max(scores, key=scores.get)
+    best_llm = max(scores, key=lambda k: scores[k])
     best_count = scores[best_llm]
 
     if best_count >= 4:
@@ -599,6 +601,227 @@ def _binoculars_transitional_entropy(text: str) -> float:
     return round(ai_prob, 3)
 
 
+def _semantic_density_ratio(text: str) -> float:
+    """
+    v4.1 Semantic Density Ratio (SDR) — Paraphrase-Resistant AI Signal.
+    AI text packs more unique semantic content per sentence than human text,
+    maintaining unnaturally high and uniform information density. This property
+    SURVIVES paraphrasing, rewriting, and style transfer attacks because they
+    preserve meaning while only altering surface-level lexical choice.
+
+    High SDR + low variance = likely AI (even after QuillBot / GPT-4o rewrite).
+    Human writers naturally vary: some sentences are dense (arguments), others
+    are sparse (transitions, asides, hedging, repetition).
+    """
+    sents = _sentences(text)
+    if len(sents) < 4:
+        return 0.5
+
+    densities = []
+    for s in sents:
+        words = _words(s)
+        if len(words) < 4:
+            continue
+        # Content words: length > 3 filters out articles, pronouns, prepositions
+        unique_content = len(set(w for w in words if len(w) > 3))
+        densities.append(unique_content / max(len(words), 1))
+
+    if len(densities) < 3:
+        return 0.5
+
+    mean_d = mean(densities)
+    var_d = pstdev(densities) if len(densities) > 1 else 0
+
+    # AI: high mean density (> 0.35) with low variance (< 0.10)
+    # Human: more variable density patterns
+    density_signal = max(0.0, min(1.0, (mean_d - 0.25) * 3.0))
+    uniformity_signal = max(0.0, min(1.0, 1.0 - var_d * 8.0))
+
+    return round(max(0.0, min(1.0, 0.55 * density_signal + 0.45 * uniformity_signal)), 3)
+
+
+def _detect_authorship_transitions(sentence_probs: list[float]) -> dict:
+    """
+    v4.1 Mixed Authorship Detection — Detects human+AI blended documents.
+    Identifies transition points where authorship switches between human and AI
+    within a single document (e.g., AI-drafted then human-edited, or human text
+    with AI-inserted paragraphs).
+    """
+    if len(sentence_probs) < 5:
+        return {"transitions": 0, "mixed_ratio": 0.0, "ai_sentence_ratio": 0.0, "is_mixed_authorship": False}
+
+    # Smooth with a small window to reduce noise
+    smoothed = [mean(sentence_probs[max(0, i - 1):i + 2]) for i in range(len(sentence_probs))]
+
+    transitions = 0
+    for i in range(1, len(smoothed)):
+        if (smoothed[i] > 0.60 and smoothed[i - 1] < 0.40) or \
+           (smoothed[i] < 0.40 and smoothed[i - 1] > 0.60):
+            transitions += 1
+
+    ai_sents = sum(1 for p in smoothed if p > 0.60)
+    human_sents = sum(1 for p in smoothed if p < 0.40)
+    total = max(len(smoothed), 1)
+
+    return {
+        "transitions": transitions,
+        "mixed_ratio": round(min(ai_sents, human_sents) / total, 3),
+        "ai_sentence_ratio": round(ai_sents / total, 3),
+        "is_mixed_authorship": transitions >= 2 and min(ai_sents, human_sents) / total > 0.15,
+    }
+
+
+
+# ============================================================================
+# CODE FORENSICS TRACK: MANUAL VS VIBE CODED
+# ============================================================================
+
+CODE_KEYWORDS = frozenset({
+    "def", "class", "import", "return", "const", "let", "function",
+    "while", "for", "if", "arr", "ind", "else", "elif", "export",
+    "async", "await", "from", "int", "str", "float", "bool", "len",
+    "range", "self", "print", "throw", "catch", "try", "switch", "case",
+    "var", "val", "fn", "struct", "public", "private", "interface", "yield"
+})
+
+TERSE_IDENTIFIERS = frozenset({
+    "i", "j", "k", "n", "m", "arr", "ind", "ans", "cnt", "idx", "val",
+    "mid", "res", "pos", "ptr", "dp", "cur", "nxt", "len", "tmp", "key",
+    "num", "tot", "start", "end", "low", "high", "head", "tail", "u", "v",
+    "w", "x", "y", "z", "a", "b", "c", "d", "e", "f", "p", "q", "r", "s", "t"
+})
+
+
+def _try_parse_ast(text: str) -> tuple[bool, list[str]]:
+    """Attempts to parse text as Python AST. Returns (success, list_of_identifiers)."""
+    try:
+        tree = ast.parse(text)
+        meaningful_nodes = (
+            ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+            ast.For, ast.AsyncFor, ast.While, ast.If, ast.Assign,
+            ast.Return, ast.Import, ast.ImportFrom, ast.AugAssign,
+        )
+        has_statements = any(isinstance(node, meaningful_nodes) for node in ast.walk(tree))
+        if not has_statements:
+            return False, []
+
+        idents: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                idents.append(node.id)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                idents.append(node.name)
+                for arg in node.args.args:
+                    idents.append(arg.arg)
+            elif isinstance(node, ast.ClassDef):
+                idents.append(node.name)
+        return True, idents
+    except Exception:
+        return False, []
+
+
+def code_syntax_analysis(text: str) -> dict:
+    """
+    Code Forensics Track: Evaluates whether input text is program code (Python, JS, C++, etc.)
+    and measures identifier entropy and comment/docstring density to distinguish
+    Manual/Competitive Human Code from AI/Vibe Generated Code.
+    """
+    lines = [l for l in text.splitlines() if l.strip()]
+    tokens = re.findall(r"\b[A-Za-z_]\w*\b", text)
+    if not tokens:
+        return {
+            "is_code": 0.0,
+            "code_density": 0.0,
+            "identifier_entropy": 0.5,
+            "comment_ratio": 0.0,
+            "ast_parsed": False,
+        }
+
+    # 1. Keyword density
+    marker_hits = sum(1 for tok in tokens if tok in CODE_KEYWORDS)
+    code_density = round(marker_hits / max(len(tokens), 1), 3)
+
+    # 2. Python AST Parsing
+    ast_parsed, ast_idents = _try_parse_ast(text)
+
+    # 3. Structural markers (indentation, code brackets, colons, semicolons)
+    indented_lines = sum(1 for l in lines if l.startswith(("  ", "\t")))
+    indent_ratio = indented_lines / max(len(lines), 1)
+    syntax_brackets = len(re.findall(r"[\{\}\[\]\(\);=+\-*/<>]", text))
+    bracket_density = syntax_brackets / max(len(tokens), 1)
+
+    is_code = 1.0 if (
+        code_density >= 0.12
+        or ast_parsed
+        or (code_density >= 0.08 and (indent_ratio >= 0.35 or bracket_density >= 0.40))
+    ) else 0.0
+
+    if is_code == 0.0:
+        return {
+            "is_code": 0.0,
+            "code_density": code_density,
+            "identifier_entropy": 0.5,
+            "comment_ratio": 0.0,
+            "ast_parsed": ast_parsed,
+        }
+
+    # 4. Measure Identifier Entropy
+    if ast_idents:
+        candidate_idents = [id_name for id_name in ast_idents if id_name not in CODE_KEYWORDS and not id_name.isdigit()]
+    else:
+        candidate_idents = [tok for tok in tokens if tok not in CODE_KEYWORDS and not tok.isdigit()]
+
+    if candidate_idents:
+        avg_len = mean(len(id_name) for id_name in candidate_idents)
+        terse_count = sum(1 for id_name in candidate_idents if len(id_name) <= 3 or id_name.lower() in TERSE_IDENTIFIERS)
+        terse_ratio = terse_count / len(candidate_idents)
+        # Terse, single-letter identifiers yield low entropy (< 0.35)
+        # Long, descriptive multi-word identifiers yield high entropy (> 0.60)
+        raw_entropy = (avg_len / 10.0) * 0.55 + (1.0 - terse_ratio) * 0.45
+        identifier_entropy = round(max(0.05, min(0.98, raw_entropy)), 3)
+    else:
+        identifier_entropy = 0.25 if ast_parsed else 0.50
+
+    # 5. Measure Docstring / Comment Ratio
+    comment_char_count = 0
+    in_multiline = False
+    delim = None
+    for line in lines:
+        stripped = line.strip()
+        if in_multiline:
+            comment_char_count += len(line)
+            if delim and delim in stripped:
+                in_multiline = False
+                delim = None
+            continue
+        if stripped.startswith('"""') or stripped.startswith("'''"):
+            comment_char_count += len(line)
+            cur_delim = stripped[:3]
+            if stripped.count(cur_delim) == 1:
+                in_multiline = True
+                delim = cur_delim
+            continue
+        if stripped.startswith(("#", "//", "/*", "*")):
+            comment_char_count += len(line)
+        elif "#" in line:
+            comment_char_count += len(line) - line.index("#")
+        elif "//" in line:
+            comment_char_count += len(line) - line.index("//")
+
+    type_annotation_count = len(re.findall(r":\s*(?:int|str|float|bool|list|dict|tuple|set|Any|Optional|Union|List|Dict)\b|->\s*\w+", text))
+    total_text_len = max(len(text), 1)
+    effective_comment_chars = comment_char_count + type_annotation_count * 15
+    comment_ratio = round(min(1.0, effective_comment_chars / total_text_len), 3)
+
+    return {
+        "is_code": 1.0,
+        "code_density": code_density,
+        "identifier_entropy": identifier_entropy,
+        "comment_ratio": comment_ratio,
+        "ast_parsed": ast_parsed,
+    }
+
+
 # ============================================================================
 # MAIN HEURISTIC PIPELINE
 # ============================================================================
@@ -607,6 +830,9 @@ def _heuristic(text: str) -> dict:
     """CPU-safe heuristic analysis with comprehensive signal extraction and security normalization."""
     clean = _normalize_and_sanitize_text(text)
     injection_info = _detect_prompt_injection(clean)
+    code_info = code_syntax_analysis(clean)
+    is_code = code_info["is_code"]
+
     sents = _sentences(clean) or [clean]
     perps = [_perplexity(s) for s in sents]
     avg_p = mean(perps) if perps else 0
@@ -637,31 +863,54 @@ def _heuristic(text: str) -> dict:
     list_score = _list_and_structure_score(clean)
     binoculars_entropy = _binoculars_transitional_entropy(clean)
 
-    # Multi-signal blended heuristic
-    # Core signals (48%)
-    core = (
-        0.13 * uniformity +
-        0.10 * perp_signal +
-        0.13 * style_score +
-        0.12 * contraction
-    )
-    # Structural signals (18%)
-    structural = (
-        0.07 * start_entropy +
-        0.05 * para_uniform +
-        0.06 * list_score
-    )
-    # Stylometric & Binoculars signals (34%)
-    stylometric = (
-        0.06 * vocab_rich +
-        0.05 * hedging +
-        0.05 * passive +
-        0.06 * zipf +
-        0.06 * punct_entropy +
-        0.06 * binoculars_entropy
-    )
+    # v4.1: Paraphrase-resistant semantic density ratio
+    semantic_density = _semantic_density_ratio(clean)
 
-    base_heuristic = core + structural + stylometric
+    if is_code == 1.0:
+        # Suppress natural-prose Zipf curve and sentence-burstiness penalties
+        zipf = 0.0
+        uniformity = 0.0
+        burst = 0.85
+        contraction = 0.0
+        start_entropy = 0.5
+        para_uniform = 0.0
+        vocab_rich = 0.1
+        hedging = 0.0
+        passive = 0.0
+        punct_entropy = 0.15
+        list_score = 0.0
+        binoculars_entropy = 0.1
+        semantic_density = 0.1
+        style_score = 0.0
+        perp_signal = 0.03
+        base_heuristic = 0.03
+    else:
+        # Multi-signal blended heuristic
+        # Core signals (46%)
+        core = (
+            0.12 * uniformity +
+            0.10 * perp_signal +
+            0.12 * style_score +
+            0.12 * contraction
+        )
+        # Structural signals (17%)
+        structural = (
+            0.07 * start_entropy +
+            0.05 * para_uniform +
+            0.05 * list_score
+        )
+        # Stylometric & Binoculars signals (37%) — includes v4.1 SDR
+        stylometric = (
+            0.06 * vocab_rich +
+            0.05 * hedging +
+            0.04 * passive +
+            0.06 * zipf +
+            0.05 * punct_entropy +
+            0.06 * binoculars_entropy +
+            0.05 * semantic_density  # v4.1: paraphrase-resistant density signal
+        )
+
+        base_heuristic = core + structural + stylometric
 
     # LLM pattern detection overrides base if strong
     overall = max(0.02, min(0.98, max(base_heuristic, llm_pattern_prob)))
@@ -678,6 +927,11 @@ def _heuristic(text: str) -> dict:
         "overall_score": round(overall, 3),
         "sentences": sent_data,
         "signals": {
+            "is_code": is_code,
+            "code_density": code_info["code_density"],
+            "identifier_entropy": code_info["identifier_entropy"],
+            "comment_ratio": code_info["comment_ratio"],
+            "ast_parsed": code_info["ast_parsed"],
             "perplexity": round(avg_p, 2),
             "burstiness": round(burst, 3),
             "stylometry_score": round(style_score, 3),
@@ -693,6 +947,7 @@ def _heuristic(text: str) -> dict:
             "punctuation_entropy": round(punct_entropy, 3),
             "list_structure_score": round(list_score, 3),
             "transitional_entropy_variance": round(binoculars_entropy, 3),
+            "semantic_density_ratio": round(semantic_density, 3),
             # Pattern detection
             "marker_hits": markers,
             "llm_patterns_detected": llm_pattern_count,
@@ -737,6 +992,82 @@ def _find_text_model_dir() -> str | None:
     return None
 
 
+def _find_fine_tuned_dir() -> str | None:
+    """Find the fine-tuned text model directory (Model/text/fine_tuned/)."""
+    base = Path(__file__).resolve()
+    for parents_idx in (4, 3, 2):
+        p = base.parents[parents_idx] / "Model" / "text" / "fine_tuned"
+        if p.exists() and (any(p.glob("*.safetensors")) or any(p.glob("*.bin"))):
+            return str(p)
+    return None
+
+
+@lru_cache(maxsize=1)
+def _load_fine_tuned_model():
+    """Load the fine-tuned transformer for transformer_prob feature."""
+    try:
+        import torch
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    except ImportError as e:
+        raise _ModelUnavailable("torch/transformers not installed") from e
+
+    from app.core.config import settings
+    device = settings.compute_device
+
+    ft_dir = _find_fine_tuned_dir()
+    if ft_dir is None:
+        raise _ModelUnavailable("Fine-tuned text model not found on disk")
+
+    try:
+        tok = AutoTokenizer.from_pretrained(ft_dir, local_files_only=True)
+        model = AutoModelForSequenceClassification.from_pretrained(ft_dir, local_files_only=True)
+        model.to(device).eval()
+        return tok, model, torch, device
+    except Exception as e:
+        raise _ModelUnavailable(f"Failed to load fine-tuned model from {ft_dir}: {e}") from e
+
+
+def _fine_tuned_model_prob(text: str) -> float | None:
+    """Run fine-tuned transformer to produce transformer_prob feature.
+    Returns None if model is unavailable."""
+    try:
+        tok, model, torch, device = _load_fine_tuned_model()
+    except _ModelUnavailable:
+        return None
+
+    labels = {int(k): v.lower() for k, v in model.config.id2label.items()}
+    fake_idx = next((i for i, l in labels.items() if any(t in l for t in ("fake", "ai", "artificial", "synthetic", "chatgpt"))), 0)
+
+    tokens = tok.encode(text, add_special_tokens=False)
+    if len(tokens) <= 480:
+        inputs = tok(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.inference_mode():
+            probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
+        return round(float(probs[fake_idx]), 4)
+
+    # Long text: sliding window with 50% overlap
+    window_size = 480
+    stride = 240
+    chunk_probs = []
+    for start in range(0, len(tokens), stride):
+        chunk_tokens = tokens[start:start + window_size]
+        if len(chunk_tokens) < 50:
+            break
+        chunk_text = tok.decode(chunk_tokens, skip_special_tokens=True)
+        inputs = tok(chunk_text, return_tensors="pt", truncation=True, max_length=512, padding=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.inference_mode():
+            probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
+        chunk_probs.append(float(probs[fake_idx]))
+
+    if not chunk_probs:
+        return None
+    weights = [1.0 / (1 + 0.05 * i) for i in range(len(chunk_probs))]
+    total_w = sum(weights)
+    avg = sum(p * w for p, w in zip(chunk_probs, weights)) / total_w
+    return round(avg, 4)
+
 @lru_cache(maxsize=1)
 def _load_model():
     try:
@@ -749,6 +1080,7 @@ def _load_model():
     device = settings.compute_device
 
     model_dir = _find_text_model_dir()
+    mid = "openai-community/roberta-base-openai-detector"
     if model_dir:
         try:
             tok = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
@@ -760,7 +1092,7 @@ def _load_model():
             # ponytail: Local directory model load failure falls back to cached huggingface weights
             logger.warning("Local text model load from %s failed: %s; falling back to %s", model_dir, e, mid)
 
-    mid = "openai-community/roberta-base-openai-detector"
+
     try:
         tok = AutoTokenizer.from_pretrained(mid, cache_dir=MODEL_CACHE_DIR)
         model = AutoModelForSequenceClassification.from_pretrained(mid, cache_dir=MODEL_CACHE_DIR)
@@ -823,16 +1155,29 @@ def _model_sentence_probs(sentences: list[str]) -> list[float | None]:
     labels = {int(k): v.lower() for k, v in model.config.id2label.items()}
     fake_idx = next((i for i, l in labels.items() if any(t in l for t in ("fake", "ai", "artificial", "synthetic", "chatgpt"))), 0)
 
-    results = []
-    for s in sentences:
-        if len(s.strip()) < 10:
-            results.append(None)
-            continue
-        inputs = tok(s, return_tensors="pt", truncation=True, max_length=512, padding=True)
+    valid_indices = []
+    valid_sentences = []
+    for idx, s in enumerate(sentences):
+        if len(s.strip()) >= 10:
+            valid_indices.append(idx)
+            valid_sentences.append(s)
+
+    results: list[float | None] = [None] * len(sentences)
+    if not valid_sentences:
+        return results
+
+    # Batch in chunks of 16 to respect VRAM limit while speeding up forward passes
+    batch_size = 16
+    for b_start in range(0, len(valid_sentences), batch_size):
+        b_sents = valid_sentences[b_start:b_start + batch_size]
+        b_indices = valid_indices[b_start:b_start + batch_size]
+        inputs = tok(b_sents, return_tensors="pt", truncation=True, max_length=512, padding=True)
         inputs = {k: v.to(device) for k, v in inputs.items()}
         with torch.inference_mode():
-            probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
-        results.append(round(float(probs[fake_idx]), 3))
+            logits = model(**inputs).logits
+            probs = torch.softmax(logits, dim=-1).cpu().tolist()
+        for i_res, p in zip(b_indices, probs):
+            results[i_res] = round(float(p[fake_idx]), 3)
     return results
 
 
@@ -908,6 +1253,18 @@ def analyze_text(text: str) -> dict:
     bino_score = bino_res.get("binoculars_score")
     fast_z = bino_res.get("fast_detectgpt_z")
 
+    # v4.0: Fine-tuned transformer probability (separate from base RoBERTa)
+    transformer_prob = _fine_tuned_model_prob(clean_text)
+
+    # v4.0: Perplexity and coherence features for GBDT fusion
+    from app.ml.perplexity import compute_perplexity, compute_coherence
+    import math as _math
+    ppl_res = compute_perplexity(clean_text)
+    coh_res = compute_coherence(clean_text)
+    lm_perplexity = ppl_res["perplexity"] if ppl_res["available"] and not _math.isnan(ppl_res["perplexity"]) else 0.0
+    coherence_mean = coh_res["coherence_mean"] if coh_res["available"] and not _math.isnan(coh_res["coherence_mean"]) else 0.0
+    coherence_var = coh_res["coherence_var"] if coh_res["available"] and not _math.isnan(coh_res["coherence_var"]) else 0.0
+
     if mp is not None:
         # v3.0: Smart ensemble blending with disagreement detection
         char_count = len(text.strip())
@@ -929,6 +1286,7 @@ def analyze_text(text: str) -> dict:
         from app.ml.fusion import fuse_text_score
 
         fusion_features = {
+            "transformer_prob": transformer_prob if transformer_prob is not None else (mp if mp is not None else 0.0),
             "neural_prob": mp,
             "heuristic_score": heuristic_score,
             "llm_pattern_score": llm_pattern_score,
@@ -942,12 +1300,20 @@ def analyze_text(text: str) -> dict:
             "binoculars_ai_prob": bino_prob,
             "fast_detectgpt_z": fast_z,
             "fast_detectgpt_ai_prob": fast_prob,
+            "lm_perplexity": lm_perplexity,
+            "coherence_mean": coherence_mean,
+            "coherence_var": coherence_var,
+            "is_code": h["signals"].get("is_code", 0.0),
+            "identifier_entropy": h["signals"].get("identifier_entropy", 0.5),
+            "comment_ratio": h["signals"].get("comment_ratio", 0.0),
         }
 
         fusion_res = fuse_text_score(fusion_features)
         overall = fusion_res["overall_score"]
         conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
         conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
+        zone_low = fusion_res.get("zone_low")
+        zone_high = fusion_res.get("zone_high")
 
         logger.info(
             "text_forensics_scored",
@@ -968,9 +1334,21 @@ def analyze_text(text: str) -> dict:
                 else:
                     s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
 
+        # Ensure sentence forensics and top score are unified (no contradiction)
+        if h["signals"].get("is_code") == 1.0:
+            for s in h["sentences"]:
+                if overall <= 0.08:
+                    s["ai_prob"] = min(s.get("ai_prob", 0.0), overall)
+                    if "model_ai_prob" in s and s["model_ai_prob"] is not None:
+                        s["model_ai_prob"] = min(s["model_ai_prob"], overall)
+                elif overall >= 0.88:
+                    s["ai_prob"] = max(s.get("ai_prob", 0.0), 0.88)
+
         h["overall_score"] = round(overall, 3)
         h["confidence_band"] = conf_band
         h["confidence_range"] = conf_range
+        h["zone_low"] = zone_low
+        h["zone_high"] = zone_high
         h["signals"]["neural_ai_score"] = mp
         h["signals"]["model_id"] = model_id
         h["signals"]["inference_mode"] = inference_mode
@@ -994,6 +1372,7 @@ def analyze_text(text: str) -> dict:
         # Heuristic-only fallback — route through single score authority
         from app.ml.fusion import fuse_text_score
         fusion_features = {
+            "transformer_prob": transformer_prob if transformer_prob is not None else 0.0,
             "neural_prob": None,
             "heuristic_score": h["overall_score"],
             "llm_pattern_score": llm_pattern_score,
@@ -1007,14 +1386,30 @@ def analyze_text(text: str) -> dict:
             "binoculars_ai_prob": bino_prob,
             "fast_detectgpt_z": fast_z,
             "fast_detectgpt_ai_prob": fast_prob,
+            "lm_perplexity": lm_perplexity,
+            "coherence_mean": coherence_mean,
+            "coherence_var": coherence_var,
+            "is_code": h["signals"].get("is_code", 0.0),
+            "identifier_entropy": h["signals"].get("identifier_entropy", 0.5),
+            "comment_ratio": h["signals"].get("comment_ratio", 0.0),
         }
         fusion_res = fuse_text_score(fusion_features)
         overall = fusion_res["overall_score"]
         conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
         conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
+
+        if h["signals"].get("is_code") == 1.0:
+            for s in h["sentences"]:
+                if overall <= 0.08:
+                    s["ai_prob"] = min(s.get("ai_prob", 0.0), overall)
+                elif overall >= 0.88:
+                    s["ai_prob"] = max(s.get("ai_prob", 0.0), 0.88)
+
         h["overall_score"] = round(overall, 3)
         h["confidence_band"] = conf_band
         h["confidence_range"] = conf_range
+        h["zone_low"] = fusion_res.get("zone_low")
+        h["zone_high"] = fusion_res.get("zone_high")
         h["signals"]["confidence_band"] = conf_band
         h["signals"]["confidence_range"] = conf_range
         h["signals"]["inference_mode"] = "heuristic_fallback"
@@ -1023,6 +1418,20 @@ def analyze_text(text: str) -> dict:
             "Install torch for neural accuracy."
         )
 
+    # Attach code origin / verdict if code detected
+    if h["signals"].get("is_code") == 1.0:
+        code_verdict = fusion_res.get("contributions", {}).get("code_origin")
+        if not code_verdict:
+            if h["overall_score"] <= 0.08:
+                code_verdict = "Manual Coded (Human / Competitive)"
+            elif h["overall_score"] >= 0.85:
+                code_verdict = "Vibe Coded (AI / Assistant Generated)"
+            else:
+                code_verdict = "Mixed / Unverified Code"
+        h["signals"]["code_origin"] = code_verdict
+        h["signals"]["code_verdict"] = code_verdict
+        h["model_hint"] = f"Code Forensics Track: {code_verdict} (Identifier Entropy: {h['signals'].get('identifier_entropy')}, Comments: {h['signals'].get('comment_ratio')})"
+
     # Confidence-gated LLM attribution (Rule F)
     if h["overall_score"] < 0.60 and attribution:
         attribution["detected_llm"] = None
@@ -1030,5 +1439,11 @@ def analyze_text(text: str) -> dict:
 
     # Always include LLM attribution
     h["llm_attribution"] = attribution
+
+    # v4.1: Mixed authorship transition analysis across sentences
+    sent_probs = [s.get("ai_prob", 0.5) for s in h.get("sentences", [])]
+    mixed_authorship = _detect_authorship_transitions(sent_probs)
+    h["signals"]["mixed_authorship"] = mixed_authorship
+    h["mixed_authorship"] = mixed_authorship
 
     return h

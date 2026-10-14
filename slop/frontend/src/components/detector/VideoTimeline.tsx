@@ -53,12 +53,12 @@ export function VideoTimeline({ result }: { result?: DetectionResult }) {
   };
 
   return (
-    <div className="video-timeline-container" style={{ marginTop: "16px", background: "#0b0f19", border: "1px solid #1e293b", borderRadius: "8px", padding: "16px" }}>
+    <div className="video-timeline-container" style={{ marginTop: "16px", background: "var(--bg-card)", border: "1px solid var(--border-card)", borderRadius: "8px", padding: "16px", color: "var(--text-main)" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Film size={16} className="text-cyan-400" />
-          <span style={{ fontSize: "13px", fontWeight: 700, color: "#f8fafc" }}>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>
             Temporal Anomaly Scrubber
           </span>
           {anomalyCount > 0 && (
@@ -113,10 +113,10 @@ export function VideoTimeline({ result }: { result?: DetectionResult }) {
           alignItems: "flex-end",
           height: "90px",
           gap: "2px",
-          background: "#07090e",
+          background: "var(--bg-page)",
           padding: "8px 6px",
           borderRadius: "6px",
-          border: "1px solid #1e293b",
+          border: "1px solid var(--border-card)",
           marginBottom: "12px",
         }}
       >
@@ -181,14 +181,15 @@ export function VideoTimeline({ result }: { result?: DetectionResult }) {
       {activeFrame && (
         <div
           style={{
-            background: "#07090e",
-            border: "1px solid #1e293b",
+            background: "var(--bg-page)",
+            border: "1px solid var(--border-card)",
             borderRadius: "6px",
             padding: "10px 14px",
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
             gap: "10px",
             fontSize: "12px",
+            color: "var(--text-main)",
           }}
         >
           <div>

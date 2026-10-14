@@ -3,14 +3,15 @@ export function strongPassword(password: string) {
 }
 
 export function scoreLabel(score: number) {
-  if (score >= 0.72) return "AI Likely";
-  if (score >= 0.42) return "Mixed Signal";
+  if (score > 0.70) return "AI Likely";
+  if (score >= 0.35) return "Mixed Signal";
   return "Human Likely";
 }
 
 // ponytail: fixed color references to match v2 design tokens
+// Human (< 0.35): clean emerald, AI (> 0.70): clean rose, Mixed (0.35-0.70): amber
 export function scoreColor(score: number) {
-  if (score >= 0.72) return "var(--red)";
-  if (score >= 0.42) return "var(--amber)";
+  if (score > 0.70) return "var(--red)";
+  if (score >= 0.35) return "var(--amber)";
   return "var(--green)";
 }

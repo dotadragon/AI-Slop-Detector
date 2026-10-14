@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FileText,
   Image as ImageIcon,
@@ -7,16 +7,13 @@ import {
   ArrowUpRight,
   Radio,
   Activity,
-  Cpu,
-  ShieldCheck,
-  Layers,
-  Sparkles,
   ChevronRight,
   CheckCircle2,
-  Server,
-  Zap,
-  Lock,
-  Database,
+  AlertTriangle,
+  Clock,
+  Info,
+  FastForward,
+  Check,
 } from "lucide-react";
 import { useSeo } from "../hooks/useSeo";
 import { track } from "../utils/analytics";
@@ -64,7 +61,7 @@ const SPECTRAL_LAYERS: SpectralLayer[] = [
     metrics: [
       { label: "Sensor Noise Floor", val: "0.0024 σ² (Physical)", status: "good" },
       { label: "Diffusion Latent Residual", val: "< 0.0003 (Suppressed)", status: "cyan" },
-      { label: "Silicon Correlation", val: "94.2% Camera Match", status: "good" },
+      { label: "Silicon Correlation", val: "Unquantified (demo telemetry)", status: "good" },
     ],
     telemetryLog: [
       "[PRNU] High-pass wavelets extracted 4-channel noise residual",
@@ -107,7 +104,7 @@ const SPECTRAL_LAYERS: SpectralLayer[] = [
     telemetryLog: [
       "[GRADCAM] Cross-attention activation map synthesized via Swin stage 4",
       "[ENSEMBLE] 5-crop geometric variance evaluated across frame quadrants",
-      "[CONSENSUS] Final multi-modal neural probability calibrated: 96.8% Confidence",
+      "[CONSENSUS] Final multi-modal neural probability calibrated (demo telemetry)",
     ],
   },
 ];
@@ -127,6 +124,21 @@ export function Landing() {
   const [ambientGlowY, setAmbientGlowY] = useState(25);
   const [hoveredCard, setHoveredCard] = useState<"text" | "image" | "video" | null>(null);
 
+  // Fix 1 & 3: Scroll-lock gating state machine for staged forensic inspector.
+  // Pinned inspector traps wheel/touch/keyboard navigation until Stage 4 completes.
+  // Each stage displays for MINIMUM_STAGE_DISPLAY_MS before auto-advancing,
+  const [completedStages, setCompletedStages] = useState(-1);
+  const [stageTimerProgress, setStageTimerProgress] = useState(0);
+  const [hasCompletedAllStages, setHasCompletedAllStages] = useState(false);
+  const [inspectorActive, setInspectorActive] = useState(false);
+  const stageStartTimeRef = useRef<number>(0);
+  const completedStagesRef = useRef(-1);
+  const hasCompletedAllRef = useRef(false);
+  const inspectorActiveRef = useRef(false);
+  const activeLayerRef = useRef(0);
+  activeLayerRef.current = activeLayer;
+  const touchStartYRef = useRef(0);
+
   const isManualScrubRef = useRef(false);
   isManualScrubRef.current = isManualScrub;
 
@@ -136,37 +148,95 @@ export function Landing() {
     path: "/",
   });
 
+  const advanceStage = useCallback(() => {
+    setActiveLayer((prev) => {
+      if (prev < 3) {
+        const next = prev + 1;
+        completedStagesRef.current = Math.max(completedStagesRef.current, prev);
+        setCompletedStages(completedStagesRef.current);
+        stageStartTimeRef.current = Date.now();
+        setStageTimerProgress(0);
+        return next;
+      } else {
+        completedStagesRef.current = 3;
+        hasCompletedAllRef.current = true;
+        setCompletedStages(3);
+        setHasCompletedAllStages(true);
+        setStageTimerProgress(1);
+
+        // Problem 6: Smooth Lenis scroll to CTA banner after 400ms pause upon completing Stage 4
+        setTimeout(() => {
+          const lenis = (window as unknown as { __lenis?: { scrollTo: (target: string | HTMLElement, opts?: unknown) => void } }).__lenis;
+          if (lenis) {
+            lenis.scrollTo("#cta-forensics", {
+              offset: -40,
+              duration: 1.8,
+              easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            });
+          } else {
+            document.getElementById("cta-forensics")?.scrollIntoView({ behavior: "smooth" });
+          }
+        }, 400);
+
+        return 3;
+      }
+    });
+  }, []);
+
+  const retreatStage = useCallback(() => {
+    setActiveLayer((prev) => {
+      if (prev > 0) {
+        stageStartTimeRef.current = Date.now();
+        setStageTimerProgress(0);
+        return prev - 1;
+      }
+      return prev;
+    });
+  }, []);
+
+  // Skip all stages for accessibility/impatience — immediately releases scroll lock
+  const handleSkipAnimation = useCallback(() => {
+    completedStagesRef.current = 3;
+    hasCompletedAllRef.current = true;
+    setCompletedStages(3);
+    setHasCompletedAllStages(true);
+    setStageTimerProgress(1);
+    setActiveLayer(3);
+    track("cta_clicked", { section: "inspector", action: "skip_animation" });
+  }, []);
+
   // Calculate SVG branch path lengths and wire scroll-linked splitting animation with Lenis
   useEffect(() => {
     const leftP = leftPathRef.current;
     const centerP = centerPathRef.current;
     const rightP = rightPathRef.current;
 
-    const leftLen = 320;
-    const centerLen = 180;
-    const rightLen = 320;
+    // Dynamically measure true geometric lengths of the SVG Bézier curves and vertical line
+    const leftLen = leftP && leftP.getTotalLength ? leftP.getTotalLength() : 400;
+    const centerLen = centerP && centerP.getTotalLength ? centerP.getTotalLength() : 141;
+    const rightLen = rightP && rightP.getTotalLength ? rightP.getTotalLength() : 400;
 
     if (leftP) {
       leftP.style.strokeDasharray = `${leftLen}`;
-      leftP.style.strokeDashoffset = `${leftLen}`;
+      leftP.style.strokeDashoffset = "0";
     }
     if (centerP) {
       centerP.style.strokeDasharray = `${centerLen}`;
-      centerP.style.strokeDashoffset = `${centerLen}`;
+      centerP.style.strokeDashoffset = "0";
     }
     if (rightP) {
       rightP.style.strokeDasharray = `${rightLen}`;
-      rightP.style.strokeDashoffset = `${rightLen}`;
+      rightP.style.strokeDashoffset = "0";
     }
 
     let ticking = false;
     const updateScroll = () => {
       const windowHeight = window.innerHeight;
 
-      // Conduit scroll calculation
+      // Conduit scroll calculation: reaches 1.0 (fully connected to dots) when conduit enters view
       if (conduitRef.current) {
         const rect = conduitRef.current.getBoundingClientRect();
-        const rawProgress = (windowHeight * 0.85 - rect.top) / (windowHeight * 0.6);
+        const rawProgress = (windowHeight * 0.95 - rect.top) / (windowHeight * 0.35);
         const clamped = Math.max(0, Math.min(1, rawProgress));
         setScrollProgress(clamped);
 
@@ -175,7 +245,7 @@ export function Landing() {
         if (rightP) rightP.style.strokeDashoffset = `${rightLen * (1 - clamped)}`;
       }
 
-      // Extended scroll inspector calculation
+      // Extended scroll inspector calculation with calibrated progression
       if (inspectorRef.current) {
         const iRect = inspectorRef.current.getBoundingClientRect();
         const totalTravel = iRect.height - windowHeight;
@@ -184,10 +254,18 @@ export function Landing() {
           const clampedInsp = Math.max(0, Math.min(1, rawInsp));
           setInspectorProgress(clampedInsp);
 
-          // Advance layer on scroll if user has not clicked manually
-          if (!isManualScrubRef.current) {
-            const calculatedIdx = Math.min(3, Math.floor(clampedInsp * 3.99));
-            setActiveLayer(calculatedIdx);
+          // Detect when inspector section is in view
+          const isInView = iRect.top < windowHeight && iRect.bottom > 0;
+          if (isInView && !inspectorActiveRef.current) {
+            inspectorActiveRef.current = true;
+            setInspectorActive(true);
+            stageStartTimeRef.current = Date.now();
+          }
+
+          // Once all stages have been unlocked/completed, enable scroll scrubbing across stages
+          if (hasCompletedAllRef.current && !isManualScrubRef.current) {
+            const scrollTargetIdx = Math.min(3, Math.floor(clampedInsp * 4));
+            setActiveLayer(scrollTargetIdx);
           }
         }
       }
@@ -202,13 +280,111 @@ export function Landing() {
     };
 
     const onScroll = () => {
+      if (!hasCompletedAllRef.current && inspectorRef.current) {
+        const iRect = inspectorRef.current.getBoundingClientRect();
+        // Pin Section 3: if sticky anchor is reached, prevent descent past Stage 4 completion
+        if (iRect.top < 64) {
+          window.scrollTo({ top: window.scrollY + iRect.top - 64, behavior: "instant" as ScrollBehavior });
+        }
+      }
       if (!ticking) {
         requestAnimationFrame(updateScroll);
         ticking = true;
       }
     };
 
+    // Helper: checks if the sticky inspector container is currently pinned/reached
+    const isInspectorPinned = () => {
+      if (!inspectorRef.current) return false;
+      const iRect = inspectorRef.current.getBoundingClientRect();
+      return iRect.top <= 80;
+    };
+
+    // Scroll-lock (wheel): trap downward wheel ticks while pinned until Stage 4 completes
+    const onWheelLock = (e: WheelEvent) => {
+      if (hasCompletedAllRef.current) return;
+      if (!inspectorActiveRef.current) return;
+      if (!isInspectorPinned()) return;
+
+      if (e.deltaY > 0) {
+        e.preventDefault();
+        const elapsed = Date.now() - stageStartTimeRef.current;
+        if (elapsed >= 350) {
+          advanceStage();
+        }
+      } else if (e.deltaY < 0) {
+        if (activeLayerRef.current > 0) {
+          e.preventDefault();
+          retreatStage();
+        }
+        // When activeLayerRef.current === 0, allow upward scrolling to release back to Section 2
+      }
+    };
+
+    // Touch gesture trapping
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartYRef.current = e.touches[0].clientY;
+      }
+    };
+
+    const onTouchLock = (e: TouchEvent) => {
+      if (hasCompletedAllRef.current) return;
+      if (!inspectorActiveRef.current) return;
+      if (!isInspectorPinned()) return;
+
+      if (e.touches.length > 0) {
+        const deltaY = touchStartYRef.current - e.touches[0].clientY;
+        if (deltaY > 10) {
+          // Swipe up = scroll down
+          e.preventDefault();
+          const elapsed = Date.now() - stageStartTimeRef.current;
+          if (elapsed >= 350) {
+            advanceStage();
+            touchStartYRef.current = e.touches[0].clientY;
+          }
+        } else if (deltaY < -10) {
+          // Swipe down = scroll up
+          if (activeLayerRef.current > 0) {
+            e.preventDefault();
+            retreatStage();
+            touchStartYRef.current = e.touches[0].clientY;
+          }
+          // When activeLayerRef.current === 0, release back to Section 2
+        }
+      }
+    };
+
+    // Keyboard navigation trapping
+    const onKeyLock = (e: KeyboardEvent) => {
+      if (hasCompletedAllRef.current) return;
+      if (!inspectorActiveRef.current) return;
+      if (!isInspectorPinned()) return;
+
+      const forwardKeys = ["ArrowDown", "PageDown", " ", "Spacebar"];
+      const backwardKeys = ["ArrowUp", "PageUp"];
+
+      if (forwardKeys.includes(e.key)) {
+        e.preventDefault();
+        const elapsed = Date.now() - stageStartTimeRef.current;
+        if (elapsed >= 350) {
+          advanceStage();
+        }
+      } else if (backwardKeys.includes(e.key)) {
+        if (activeLayerRef.current > 0) {
+          e.preventDefault();
+          retreatStage();
+        }
+        // When activeLayerRef.current === 0, release back to Section 2
+      }
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("wheel", onWheelLock, { passive: false });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchLock, { passive: false });
+    window.addEventListener("keydown", onKeyLock, { passive: false });
+
     const lenisInstance = (window as unknown as { __lenis?: { on: (event: string, cb: () => void) => void } }).__lenis;
     if (lenisInstance?.on) {
       lenisInstance.on("scroll", onScroll);
@@ -219,10 +395,16 @@ export function Landing() {
     return () => {
       cancelAnimationFrame(initRaf);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheelLock);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchLock);
+      window.removeEventListener("keydown", onKeyLock);
     };
-  }, []);
+  }, [advanceStage, retreatStage]);
 
   const currentLayer = SPECTRAL_LAYERS[activeLayer];
+
+  // No auto-advance timer: stage advances strictly on manual user scroll/swipe/key navigation
 
   return (
     <main id="main-content" className="landing-page-wrapper" ref={containerRef}>
@@ -238,11 +420,6 @@ export function Landing() {
 
       {/* ── 1. CENTERED HERO SECTION ── */}
       <section className="hero-centered" aria-label="SLOP Forensics Platform">
-        {/* Continuous glowing spine */}
-        <div className="hero-continuous-spine" aria-hidden="true">
-          <div className="hero-spine-pulse" />
-        </div>
-
         {/* Real-time AI content detection badge */}
         <div className="hero-badge-centered">
           REAL-TIME AI CONTENT DETECTION
@@ -257,7 +434,7 @@ export function Landing() {
 
         {/* Centered Subtitle */}
         <p className="hero-subtitle-centered">
-          Multi-model analysis platform for text, image, and video. Purpose-built
+          Multi-model analysis platform for text and image, with video, audio, and document forensics coming in v1.1. Purpose-built
           for organizations that need to verify content authenticity with
           transparent, auditable results.
         </p>
@@ -275,7 +452,7 @@ export function Landing() {
           </div>
         </div>
 
-        {/* SVG splitting smoothly into 3 glowing branches */}
+        {/* SVG splitting smoothly into 3 glowing branches with dotted base track */}
         <svg
           className="conduit-svg-container"
           viewBox="0 0 1000 180"
@@ -283,16 +460,24 @@ export function Landing() {
           aria-hidden="true"
         >
           <defs>
-            <filter id="astra-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
+            <filter id="glow-orange" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur1" />
+              <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur2" />
               <feMerge>
-                <feMergeNode in="blur" />
+                <feMergeNode in="blur2" />
+                <feMergeNode in="blur1" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            <linearGradient id="astra-orange-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#ff7700" stopOpacity="1" />
+            <linearGradient id="line-gradient" x1="0" y1="36" x2="0" y2="177" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#ff4500" stopOpacity="0.95" />
+              <stop offset="30%" stopColor="#ff6a00" stopOpacity="1" />
+              <stop offset="65%" stopColor="#ff8c00" stopOpacity="1" />
               <stop offset="100%" stopColor="#ffaa00" stopOpacity="1" />
+            </linearGradient>
+            <linearGradient id="astra-orange-grad" x1="0" y1="0" x2="0" y2="36" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#ff4500" stopOpacity="1" />
+              <stop offset="100%" stopColor="#ff6a00" stopOpacity="1" />
             </linearGradient>
           </defs>
 
@@ -304,37 +489,65 @@ export function Landing() {
             y2="36"
             stroke="url(#astra-orange-grad)"
             strokeWidth="3"
-            filter="url(#astra-glow)"
+            filter="url(#glow-orange)"
           />
 
-          {/* Branch 1: Left -> Text Analysis */}
+          {/* Dotted Base Track */}
+          <path
+            d="M 500 36 C 500 110, 166 90, 166 177"
+            stroke="#1e293b"
+            strokeWidth="2"
+            strokeDasharray="4 4"
+            fill="none"
+          />
+          <path
+            d="M 500 36 L 500 177"
+            stroke="#1e293b"
+            strokeWidth="2"
+            strokeDasharray="4 4"
+            fill="none"
+          />
+          <path
+            d="M 500 36 C 500 110, 834 90, 834 177"
+            stroke="#1e293b"
+            strokeWidth="2"
+            strokeDasharray="4 4"
+            fill="none"
+          />
+
+          {/* Glowing Orange Pulse Paths connecting directly into the dots */}
           <path
             ref={leftPathRef}
-            d="M 500 36 C 500 110, 166 90, 166 180"
-            className={`conduit-branch-path ${hoveredCard === "text" ? "active" : ""}`}
-            filter="url(#astra-glow)"
+            d="M 500 36 C 500 110, 166 90, 166 177"
+            className={`conduit-branch-path conduit-pulse-path ${hoveredCard === "text" || scrollProgress > 0.05 ? "active" : ""}`}
+            stroke="url(#line-gradient)"
+            strokeWidth="2.5"
+            filter="url(#glow-orange)"
+            fill="none"
           />
-
-          {/* Branch 2: Center -> Image Analysis */}
           <path
             ref={centerPathRef}
-            d="M 500 36 L 500 180"
-            className={`conduit-branch-path ${hoveredCard === "image" ? "active" : ""}`}
-            filter="url(#astra-glow)"
+            d="M 500 36 L 500 177"
+            className={`conduit-branch-path conduit-pulse-path ${hoveredCard === "image" || scrollProgress > 0.05 ? "active" : ""}`}
+            stroke="url(#line-gradient)"
+            strokeWidth="2.5"
+            filter="url(#glow-orange)"
+            fill="none"
           />
-
-          {/* Branch 3: Right -> Video Analysis */}
           <path
             ref={rightPathRef}
-            d="M 500 36 C 500 110, 834 90, 834 180"
-            className={`conduit-branch-path ${hoveredCard === "video" ? "active" : ""}`}
-            filter="url(#astra-glow)"
+            d="M 500 36 C 500 110, 834 90, 834 177"
+            className={`conduit-branch-path conduit-pulse-path ${hoveredCard === "video" || scrollProgress > 0.05 ? "active" : ""}`}
+            stroke="url(#line-gradient)"
+            strokeWidth="2.5"
+            filter="url(#glow-orange)"
+            fill="none"
           />
 
-          {/* Terminal input ports */}
-          <circle cx="166" cy="177" r="4.5" fill="#ff7700" filter="url(#astra-glow)" opacity={scrollProgress > 0.25 ? 1 : 0} style={{ transition: "opacity 0.2s ease" }} />
-          <circle cx="500" cy="177" r="4.5" fill="#ff7700" filter="url(#astra-glow)" opacity={scrollProgress > 0.25 ? 1 : 0} style={{ transition: "opacity 0.2s ease" }} />
-          <circle cx="834" cy="177" r="4.5" fill="#ff7700" filter="url(#astra-glow)" opacity={scrollProgress > 0.25 ? 1 : 0} style={{ transition: "opacity 0.2s ease" }} />
+          {/* Terminal input ports anchored smoothly to card headers */}
+          <circle cx="166" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" />
+          <circle cx="500" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" />
+          <circle cx="834" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" />
         </svg>
 
         {/* 3 Interactive Cards connected to the 3 branches */}
@@ -348,22 +561,29 @@ export function Landing() {
             onClick={() => track("cta_clicked", { section: "conduit", modality: "text" })}
             title="Launch Text Forensics Detector"
           >
-            <div className="conduit-card-header">
-              <div className="conduit-card-icon">
-                <FileText size={20} />
+            <div className="conduit-card-dev-header">
+              <div className="conduit-dev-badge-group">
+                <span className="conduit-dev-badge badge-orange">
+                  <span className="conduit-ping-dot active" />
+                  <span className="conduit-dev-glyph">[0xTXT]</span>
+                </span>
+                <span className="conduit-dev-bracket">[+]</span>
               </div>
+              <span className="conduit-crc-tag">CRC32: 0x8FA1</span>
+            </div>
+            <div className="conduit-card-meta-line">
               <span className="conduit-card-badge">RoBERTa + Stylometrics</span>
             </div>
             <h3>Text Analysis</h3>
             <p>
-              Perplexity cross-ratio, burstiness variance, Zipfian curve, and 58+ LLM attribution signatures.
+              Perplexity cross-ratio, burstiness variance, Zipfian curve, and 14 stylometric &amp; distributional features (GBDT fusion).
             </p>
             <div className="conduit-card-footer">
               <span className="conduit-card-link-text">
                 Launch Text Analysis
                 <ArrowUpRight size={15} />
               </span>
-              <span className="conduit-card-latency">P95 &lt;80ms</span>
+              <span className="conduit-card-latency">85.83% BAcc (n=180)</span>
             </div>
           </Link>
 
@@ -376,52 +596,63 @@ export function Landing() {
             onClick={() => track("cta_clicked", { section: "conduit", modality: "image" })}
             title="Launch Image Forensics Detector"
           >
-            <div className="conduit-card-header">
-              <div className="conduit-card-icon">
-                <ImageIcon size={20} />
+            <div className="conduit-card-dev-header">
+              <div className="conduit-dev-badge-group">
+                <span className="conduit-dev-badge badge-cyan">
+                  <span className="conduit-ping-dot active" />
+                  <span className="conduit-dev-glyph">[λ_RAW]</span>
+                </span>
+                <span className="conduit-dev-bracket">[+]</span>
               </div>
+              <span className="conduit-crc-tag">C2PA: 0x3F1A</span>
+            </div>
+            <div className="conduit-card-meta-line">
               <span className="conduit-card-badge">Swin + GradCAM</span>
             </div>
             <h3>Image Analysis</h3>
             <p>
-              C2PA JUMBF provenance, Bayer CFA absence, 2D-FFT periodic lattice, and native PyTorch GradCAM heatmaps.
+              C2PA JUMBF provenance, Bayer CFA absence, 2D-FFT periodic lattice, and native PyTorch GradCAM heatmaps. Held-out canonical 78.85% (n=52, SDXL &amp; Unsplash).
             </p>
             <div className="conduit-card-footer">
               <span className="conduit-card-link-text">
                 Launch Image Analysis
                 <ArrowUpRight size={15} />
               </span>
-              <span className="conduit-card-latency">Multi-Crop Swin</span>
+              <span className="conduit-card-latency">Held-out canonical 78.85% (n=52, SDXL &amp; Unsplash)</span>
             </div>
           </Link>
 
           {/* Card 3: Video Analysis */}
-          <Link
-            to="/detector?tab=video"
-            className={`conduit-card ${hoveredCard === "video" ? "hovered" : ""}`}
+          <div
+            className={`conduit-card conduit-card-disabled ${hoveredCard === "video" ? "hovered" : ""}`}
             onMouseEnter={() => setHoveredCard("video")}
             onMouseLeave={() => setHoveredCard(null)}
-            onClick={() => track("cta_clicked", { section: "conduit", modality: "video" })}
-            title="Launch Video Forensics Detector"
+            title="Video Forensics Detector (Disabled in v1)"
           >
-            <div className="conduit-card-header">
-              <div className="conduit-card-icon">
-                <Film size={20} />
+            <div className="conduit-card-dev-header">
+              <div className="conduit-dev-badge-group">
+                <span className="conduit-dev-badge badge-muted">
+                  <span className="conduit-ping-dot muted" />
+                  <span className="conduit-dev-glyph">[0xVID]</span>
+                </span>
+                <span className="conduit-dev-bracket">[+]</span>
               </div>
-              <span className="conduit-card-badge">YuNet + Farnebäck</span>
+              <span className="conduit-crc-tag">CRC32: EVAL_ONLY</span>
+            </div>
+            <div className="conduit-card-meta-line">
+              <span className="conduit-card-badge conduit-badge-blocked">BLOCKED / EVAL ONLY (100% human FPR on n=20)</span>
             </div>
             <h3>Video Analysis</h3>
             <p>
               Dual-track facial deepfake crops, screen recording discriminator, and optical flow temporal stability.
             </p>
             <div className="conduit-card-footer">
-              <span className="conduit-card-link-text">
-                Launch Video Analysis
-                <ArrowUpRight size={15} />
+              <span className="conduit-card-status-disabled">
+                Disabled in v1
               </span>
-              <span className="conduit-card-latency">Real-Time SSE</span>
+              <span className="conduit-card-latency">Eval Only</span>
             </div>
-          </Link>
+          </div>
         </div>
       </section>
 
@@ -452,43 +683,174 @@ export function Landing() {
             </p>
           </div>
 
-          {/* Scroll Scrubbing Depth Gauge */}
-          <div className="inspector-scrub-bar" aria-hidden="true">
-            <div className="inspector-scrub-track">
-              <div
-                className="inspector-scrub-fill"
-                style={{ width: `${Math.round(inspectorProgress * 100)}%` }}
-              />
+          {/* Responsive Connected Stepper Dots & Scrub Gauge */}
+          <div className="inspector-stepper-wrap" aria-label="Forensic Inspection Stepper">
+            <div className="stepper-track-outer">
+              {/* Connected SVG track line connecting centers of Dot 01 (12.5% = 125) to Dot 04 (87.5% = 875) across all viewports */}
+              <svg
+                className="stepper-dots-track-bg"
+                viewBox="0 0 1000 28"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <line
+                  x1="125"
+                  y1="14"
+                  x2="875"
+                  y2="14"
+                  stroke="rgba(255, 255, 255, 0.12)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+                <line
+                  className="stepper-dots-track-fill"
+                  x1="125"
+                  y1="14"
+                  x2={125 + (activeLayer / (SPECTRAL_LAYERS.length - 1)) * 750}
+                  y2="14"
+                  stroke="url(#stepper-track-gradient)"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  style={{ transition: "x2 0.35s cubic-bezier(0.16, 1, 0.3, 1)" }}
+                />
+                <line
+                  className="stepper-shimmer-line"
+                  x1="125"
+                  y1="14"
+                  x2={125 + (activeLayer / (SPECTRAL_LAYERS.length - 1)) * 750}
+                  y2="14"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  style={{ transition: "x2 0.35s cubic-bezier(0.16, 1, 0.3, 1)" }}
+                />
+                <defs>
+                  <linearGradient id="stepper-track-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="50%" stopColor="#34d399" />
+                    <stop offset="100%" stopColor="#10b981" />
+                  </linearGradient>
+                  <linearGradient id="stepper-shimmer-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="transparent" stopOpacity="0" />
+                    <stop offset="50%" stopColor="#ffffff" stopOpacity="0.85" />
+                    <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* Milestone Dots */}
+              <div className="stepper-dots-row" role="tablist" aria-label="Inspection Stages">
+                {SPECTRAL_LAYERS.map((layer, idx) => {
+                  const isCompleted = hasCompletedAllStages || completedStages >= idx;
+                  const isActive = activeLayer === idx;
+                  const isUnlocked = hasCompletedAllStages || completedStages >= idx - 1;
+
+                  return (
+                    <button
+                      key={layer.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-label={`Stage ${layer.number}: ${layer.title}. ${isCompleted ? "Completed" : isActive ? "Active" : "Locked"}`}
+                      className={`stepper-dot-item ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""} ${!isUnlocked && !hasCompletedAllStages ? "locked" : ""}`}
+                      onClick={() => {
+                        if (isUnlocked || hasCompletedAllStages) {
+                          setActiveLayer(idx);
+                          setIsManualScrub(true);
+                          track("cta_clicked", { section: "stepper_dot", stage: layer.id });
+                        }
+                      }}
+                      tabIndex={0}
+                    >
+                      <div className="stepper-dot-disc">
+                        {isCompleted ? (
+                           <Check size={11} className="stepper-dot-check-icon" />
+                        ) : (
+                          <span className="stepper-dot-digit">{layer.number}</span>
+                        )}
+                        {isActive && <span className="stepper-dot-halo" aria-hidden="true" />}
+                      </div>
+                      <div className="stepper-dot-caption">
+                        <span className="stepper-dot-num-tag">STAGE {layer.number}</span>
+                        <span className="stepper-dot-tag-text">{layer.tag}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="inspector-scrub-meta">
-              <span className="scrub-layer-indicator">
-                STAGE {activeLayer + 1} / 4 : {currentLayer.title.toUpperCase()}
+
+            {/* Stepper Status Meta Row */}
+            <div className="inspector-stepper-meta">
+              <span className="stepper-stage-title">
+                STAGE {activeLayer + 1} OF 4 : {currentLayer.title.toUpperCase()}
               </span>
-              <span className="scrub-percent">{Math.round(inspectorProgress * 100)}% INSPECTED</span>
+              <div className="stepper-meta-controls">
+                <span className="stepper-pct-badge">
+                  {hasCompletedAllStages
+                    ? "100% COMPLETE"
+                    : `${Math.round(((activeLayer + 1) / 4) * 100)}% INSPECTED`}
+                </span>
+                {!hasCompletedAllStages ? (
+                  <button
+                    type="button"
+                    id="skip-animation-btn"
+                    className="skip-animation-btn"
+                    onClick={handleSkipAnimation}
+                    aria-label="Skip animation and unlock all forensic stages"
+                  >
+                    <FastForward size={12} />
+                    <span>Skip Animation</span>
+                  </button>
+                ) : (
+                  <span className="stages-unlocked-badge">
+                    <CheckCircle2 size={12} />
+                    <span>ALL STAGES UNLOCKED</span>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           {/* 4 Interactive Layer Tabs */}
           <div className="inspector-tabs" role="tablist" aria-label="Forensic Inspection Layers">
-            {SPECTRAL_LAYERS.map((layer, idx) => (
-              <button
-                key={layer.id}
-                role="tab"
-                aria-selected={activeLayer === idx}
-                className={`inspector-tab-item ${activeLayer === idx ? "active" : ""}`}
-                onClick={() => {
-                  setActiveLayer(idx);
-                  setIsManualScrub(true);
-                  track("cta_clicked", { section: "homepage_inspector_tab", tab: layer.id });
-                }}
-              >
-                <div className="tab-item-top">
-                  <span className="tab-item-idx">{layer.number}</span>
-                  <span className="tab-item-badge">{layer.tag}</span>
-                </div>
-                <div className="tab-item-title">{layer.title}</div>
-              </button>
-            ))}
+            {SPECTRAL_LAYERS.map((layer, idx) => {
+              const isActive = activeLayer === idx;
+              const isLocked = !hasCompletedAllStages && completedStages < idx;
+              const isCompleted = completedStages >= idx || hasCompletedAllStages;
+
+              return (
+                <button
+                  key={layer.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`inspector-tab-item ${isActive ? "active" : ""} ${isLocked ? "locked" : ""}`}
+                  onClick={() => {
+                    setActiveLayer(idx);
+                    setIsManualScrub(true);
+                    track("cta_clicked", { section: "homepage_inspector_tab", tab: layer.id });
+                  }}
+                >
+                  <div className="tab-item-top">
+                    <span className="tab-item-idx">{layer.number}</span>
+                    <div className="tab-item-badges-wrap">
+                      {isCompleted ? (
+                        <span className="tab-item-status-unlocked" title="Forensic stage inspected">
+                          <Check size={10} />
+                          <span>UNLOCKED</span>
+                        </span>
+                      ) : isActive ? (
+                        <span className="tab-item-status-unlocked" style={{ borderColor: "#10b981", color: "#10b981" }}>
+                          <span>ACTIVE</span>
+                        </span>
+                      ) : (
+                        <span className="tab-item-locked-badge">LOCKED</span>
+                      )}
+                      <span className="tab-item-badge">{layer.tag}</span>
+                    </div>
+                  </div>
+                  <div className="tab-item-title">{layer.title}</div>
+                </button>
+              );
+            })}
           </div>
 
           {/* Interactive Holographic Canvas & Telemetry HUD */}
@@ -604,7 +966,7 @@ export function Landing() {
                 <span className="hud-title-tag">FORENSIC TELEMETRY</span>
                 <span className="hud-confidence-badge">
                   <CheckCircle2 size={13} color="#10b981" />
-                  CALIBRATED ACCURACY: 96.8%
+                  LIVE PIPELINE STATUS
                 </span>
               </div>
 
@@ -633,216 +995,45 @@ export function Landing() {
                 ))}
               </div>
 
-              {/* CTA to live detector */}
-              <Link
-                to={`/detector?tab=${currentLayer.detectorModality}`}
+              {/* CTA with smooth Lenis scroll */}
+              <button
+                type="button"
                 className="hud-action-btn"
-                onClick={() => track("cta_clicked", { section: "inspector", layer: currentLayer.id })}
+                onClick={() => {
+                  track("cta_clicked", { section: "inspector", layer: currentLayer.id });
+                  const lenis = (window as unknown as { __lenis?: { scrollTo: (target: string | HTMLElement, opts?: unknown) => void } }).__lenis;
+                  if (lenis) {
+                    lenis.scrollTo("#cta-forensics", {
+                      offset: -40,
+                      duration: 1.8,
+                      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+                    });
+                  } else {
+                    document.getElementById("cta-forensics")?.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
               >
                 <span>Verify Content With This Layer</span>
                 <ChevronRight size={16} />
-              </Link>
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── 4. EMPIRICAL FORENSIC CALIBRATION MATRIX ── */}
-      <section className="calibration-matrix-section" aria-label="Forensic Benchmark Calibration Matrix">
-        <div className="matrix-header">
-          <div className="matrix-badge">
-            <Activity size={13} />
-            <span>EMPIRICAL BENCHMARK VERIFICATION</span>
-          </div>
-          <h2 className="matrix-title">
-            Calibrated Across Modern AI Modalities with &gt;95% Accuracy<span className="hero-amber-dot">.</span>
-          </h2>
-          <p className="matrix-subtitle">
-            Zero synthetic fallbacks or heuristic placeholders. Every forensic result is derived from live PyTorch inference on NVIDIA RTX hardware with bounded false-positive rates.
-          </p>
-        </div>
 
-        <div className="matrix-grid">
-          {/* Card A: Diffusion Latent */}
-          <div className="matrix-card ai-synthetic">
-            <div className="matrix-card-top">
-              <span className="matrix-type-tag">SYNTHETIC MEDIA</span>
-              <span className="matrix-score-pill ai">98.8% AI CONFIDENCE</span>
-            </div>
-            <h3 className="matrix-card-title">Diffusion Generative Latents</h3>
-            <p className="matrix-card-desc">
-              Midjourney v6, Flux.1, and DALL-E 3 exhibits cross-attention clustering in Swin-Base stage 4, azimuthal Fourier power spikes, and complete absence of Bayer CFA silicon noise.
-            </p>
-            <div className="matrix-stats-row">
-              <div className="matrix-stat">
-                <span className="stat-label">Swin Salience</span>
-                <span className="stat-val ai">0.988</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">PRNU Residual</span>
-                <span className="stat-val">&lt; 0.0003 σ²</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Attribution</span>
-                <span className="stat-val">Diffusion Engine</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Card B: Camera RAW */}
-          <div className="matrix-card human-authentic">
-            <div className="matrix-card-top">
-              <span className="matrix-type-tag">PHYSICAL SENSOR</span>
-              <span className="matrix-score-pill human">8.0% AI (92% AUTHENTIC)</span>
-            </div>
-            <h3 className="matrix-card-title">CMOS Camera Sensor Captures</h3>
-            <p className="matrix-card-desc">
-              Genuine digital camera captures maintain natural 1/f spectral roll-off, physical CMOS dark-current non-uniformity (0.0024 σ²), and 2×2 Bayer quincunx lattice demosaicing.
-            </p>
-            <div className="matrix-stats-row">
-              <div className="matrix-stat">
-                <span className="stat-label">Bayer CFA</span>
-                <span className="stat-val human">Confirmed</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Optical Floor</span>
-                <span className="stat-val human">0.0024 σ²</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Attribution</span>
-                <span className="stat-val">Camera Photo</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Card C: Technical Diagrams */}
-          <div className="matrix-card human-authentic">
-            <div className="matrix-card-top">
-              <span className="matrix-type-tag">DISCRETE VECTOR</span>
-              <span className="matrix-score-pill human">3.0% AI (97% AUTHENTIC)</span>
-            </div>
-            <h3 className="matrix-card-title">Technical Schematics & UI</h3>
-            <p className="matrix-card-desc">
-              Software architecture flowcharts, UI wireframes, and vector diagrams are preserved without false-positive suppression via discrete orthogonal edge alignment and palette clustering.
-            </p>
-            <div className="matrix-stats-row">
-              <div className="matrix-stat">
-                <span className="stat-label">HV Alignment</span>
-                <span className="stat-val human">0.540 (Orthogonal)</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Palette Variety</span>
-                <span className="stat-val human">Discrete Set</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Attribution</span>
-                <span className="stat-val">Technical Layout</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card D: Frontier LLMs */}
-          <div className="matrix-card ai-synthetic">
-            <div className="matrix-card-top">
-              <span className="matrix-type-tag">SYNTHETIC TEXT</span>
-              <span className="matrix-score-pill ai">99.5% AI CONFIDENCE</span>
-            </div>
-            <h3 className="matrix-card-title">Frontier LLM Text Generation</h3>
-            <p className="matrix-card-desc">
-              ChatGPT, Claude 3.5 Sonnet, and Gemini 2.0 signatures isolated through Binoculars transitional entropy cross-ratios, Zipfian rank deviation, and 58+ syntactic marker patterns.
-            </p>
-            <div className="matrix-stats-row">
-              <div className="matrix-stat">
-                <span className="stat-label">RoBERTa Prob</span>
-                <span className="stat-val ai">0.998</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Transitional Entropy</span>
-                <span className="stat-val ai">Calibrated</span>
-              </div>
-              <div className="matrix-stat">
-                <span className="stat-label">Attribution</span>
-                <span className="stat-val">Frontier Model</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 5. ENTERPRISE GOVERNANCE & HARDWARE ARCHITECTURE ── */}
-      <section className="governance-section" aria-label="Production Architecture & Governance Directives">
-        <div className="governance-container">
-          <div className="governance-header">
-            <div className="matrix-badge">
-              <ShieldCheck size={13} />
-              <span>PRODUCTION-READY GUARDRAILS</span>
-            </div>
-            <h2 className="governance-title">
-              Engineered Under Strict Zero-Mock & Hardware Budget Constraints<span className="hero-amber-dot">.</span>
-            </h2>
-          </div>
-
-          <div className="governance-grid">
-            <div className="gov-item">
-              <div className="gov-icon-wrap">
-                <Cpu size={22} color="#ff7700" />
-              </div>
-              <div className="gov-content">
-                <h4>Hardware Budget Enforcement</h4>
-                <p>
-                  Strict 5.0 GB VRAM ceiling on RTX 4050 (6GB). Modalities never hold GPU memory simultaneously; context eviction and explicit cache management ensure zero out-of-memory crashes.
-                </p>
-              </div>
-            </div>
-
-            <div className="gov-item">
-              <div className="gov-icon-wrap">
-                <Lock size={22} color="#10b981" />
-              </div>
-              <div className="gov-content">
-                <h4>Adversarial Sanitization</h4>
-                <p>
-                  Incoming text undergoes Unicode NFKC normalization, stripping zero-width escape characters and neutralizing prompt injection attempts before tokenization or stylometric processing.
-                </p>
-              </div>
-            </div>
-
-            <div className="gov-item">
-              <div className="gov-icon-wrap">
-                <Server size={22} color="#06b6d4" />
-              </div>
-              <div className="gov-content">
-                <h4>RFC 7807 Auditable Contracts</h4>
-                <p>
-                  Async FastAPI backend guarantees RFC 7807 problem details on every error response, with cryptographic C2PA provenance signatures and verifiable SHA-256 evidence dossiers.
-                </p>
-              </div>
-            </div>
-
-            <div className="gov-item">
-              <div className="gov-icon-wrap">
-                <Zap size={22} color="#f43f5e" />
-              </div>
-              <div className="gov-content">
-                <h4>Zero-Mock Forensic Pipeline</h4>
-                <p>
-                  Never returns synthetic heuristics or hardcoded confidence scores. Every prediction runs genuine PyTorch forward passes with live explainability heatmaps and telemetry streaming.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ── 6. DIRECT TELEMETRY CTA BANNER ── */}
-      <section className="telemetry-cta-section" aria-label="Start Content Analysis">
+      <section id="cta-forensics" className="telemetry-cta-section" aria-label="Start Content Analysis">
         <div className="cta-banner-box">
           <div className="cta-banner-glow" aria-hidden="true" />
           <div className="cta-banner-content">
-            <span className="cta-banner-tag">PRODUCTION READY</span>
+            <span className="cta-banner-tag">PRODUCTION READY — TEXT & IMAGE</span>
             <h2 className="cta-banner-heading">Deploy High-Precision AI Forensics to Your Workflow</h2>
             <p className="cta-banner-sub">
-              Upload images, sustained prose, or video sequences to evaluate synthetic probability with calibrated explainability and verifiable evidence dossiers.
+              Upload images or paste prose to evaluate synthetic probability with calibrated explainability and verifiable evidence dossiers. Video, audio, and document detectors arrive in v1.1 pending validation.
             </p>
             <div className="cta-btn-group">
               <Link to="/detector?tab=image" className="cta-primary-btn" onClick={() => track("cta_clicked", { section: "bottom_banner", target: "image_detector" })}>

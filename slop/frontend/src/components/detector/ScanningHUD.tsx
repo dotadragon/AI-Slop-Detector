@@ -34,32 +34,54 @@ export function ScanningHUD() {
       }
       setActiveStage(current);
 
-      // Generate telemetry logs
-      const ms = elapsed.toString().padStart(4, "0");
-      if (elapsed < 300) {
+      // Generate normalized telemetry logs with realistic forensic cadence
+      if (elapsed < 350) {
+        const ms = Math.min(elapsed, 300).toString().padStart(4, "0");
         setLogs([`[+${ms}ms] [INIT] Raw file stream mapped into memory buffers`]);
-      } else if (elapsed < 800) {
+      } else if (elapsed < 850) {
+        const ms = Math.min(elapsed, 750).toString().padStart(4, "0");
         setLogs([
           `[+0120ms] [OK] Binary image signatures verified (no polyglot payload)`,
           `[+${ms}ms] [PROV] Checking C2PA JUMBF claim stores...`
         ]);
-      } else if (elapsed < 1400) {
+      } else if (elapsed < 1500) {
+        const ms = Math.min(elapsed, 1350).toString().padStart(4, "0");
         setLogs([
           `[+0120ms] [OK] Binary image signatures verified (clean)`,
           `[+0650ms] [PROV] Content credentials evaluated`,
           `[+${ms}ms] [SCAN] Calculating 2D Discrete Cosine Transform (DCT) grid...`
         ]);
-      } else if (elapsed < 2300) {
+      } else if (elapsed < 2400) {
+        const ms = Math.min(elapsed, 2150).toString().padStart(4, "0");
         setLogs([
           `[+0650ms] [PROV] Content credentials evaluated`,
           `[+1280ms] [FREQ] 64x64 DCT energy variance matrix extracted`,
           `[+${ms}ms] [NEURAL] Forward pass through Vision Transformer ViT-B/16...`
         ]);
-      } else {
+      } else if (elapsed < 3200) {
+        const ms = Math.min(elapsed, 2900).toString().padStart(4, "0");
         setLogs([
           `[+1280ms] [FREQ] High-frequency watermark variance isolated`,
           `[+2150ms] [NEURAL] Softmax probability distribution finalized`,
           `[+${ms}ms] [ATTRIB] Aggregating multi-modal consensus & bounding box...`
+        ]);
+      } else {
+        // Continuous forensic keepalive heartbeats for extended backend passes
+        const HEARTBEATS = [
+          { tag: "ATTRIB", text: "Multi-modal ensemble forward pass in progress..." },
+          { tag: "CALIB", text: "Platt scaling & Wilson confidence calibration active..." },
+          { tag: "PRNU", text: "Cross-verifying sensor noise floor with dark frame reference..." },
+          { tag: "GRADCAM", text: "Computing ViT cross-attention salience gradients..." },
+          { tag: "SYNC", text: "Finalizing consensus tensor matrix reduction..." }
+        ];
+        const cycle = Math.floor((elapsed - 3200) / 650);
+        const activeBeat = HEARTBEATS[cycle % HEARTBEATS.length];
+        const beatMs = (3000 + (cycle * 210)).toString().padStart(4, "0");
+
+        setLogs([
+          `[+2150ms] [NEURAL] Softmax probability distribution finalized`,
+          `[+2900ms] [ATTRIB] Aggregating multi-modal consensus & bounding box...`,
+          `[+${beatMs}ms] [${activeBeat.tag}] ${activeBeat.text}`
         ]);
       }
     }, 100);

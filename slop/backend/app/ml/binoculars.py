@@ -68,7 +68,7 @@ def evict_binoculars_models() -> None:
         logger.warning(f"Error evicting binoculars models: {e}")
 
 
-def load_binoculars_pair(device: str | None = None):
+def load_binoculars_pair(device: str | None = None) -> tuple[Any, Any, Any, Any, str]:
     """Loads Observer and Performer models onto target device."""
     global _OBSERVER_MODEL, _OBSERVER_TOK, _PERFORMER_MODEL, _PERFORMER_TOK, _ACTIVE_DEVICE
     
@@ -77,7 +77,13 @@ def load_binoculars_pair(device: str | None = None):
     from app.core.config import settings
 
     target_device = device or settings.compute_device
-    if _OBSERVER_MODEL is not None and _PERFORMER_MODEL is not None and _ACTIVE_DEVICE == target_device:
+    if (
+        _OBSERVER_MODEL is not None
+        and _PERFORMER_MODEL is not None
+        and _OBSERVER_TOK is not None
+        and _PERFORMER_TOK is not None
+        and _ACTIVE_DEVICE == target_device
+    ):
         return _OBSERVER_TOK, _OBSERVER_MODEL, _PERFORMER_TOK, _PERFORMER_MODEL, target_device
 
     obs_dir = _find_qwen_dir("qwen2.5_0.5b")
@@ -96,7 +102,7 @@ def load_binoculars_pair(device: str | None = None):
     obs_tok = AutoTokenizer.from_pretrained(obs_source, local_files_only=True)
     obs_model = AutoModelForCausalLM.from_pretrained(
         obs_source,
-        torch_dtype=dtype,
+        dtype=dtype,
         local_files_only=True,
     )
     obs_model.to(target_device).eval()
@@ -105,7 +111,7 @@ def load_binoculars_pair(device: str | None = None):
     perf_tok = AutoTokenizer.from_pretrained(perf_source, local_files_only=True)
     perf_model = AutoModelForCausalLM.from_pretrained(
         perf_source,
-        torch_dtype=dtype,
+        dtype=dtype,
         local_files_only=True,
     )
     perf_model.to(target_device).eval()

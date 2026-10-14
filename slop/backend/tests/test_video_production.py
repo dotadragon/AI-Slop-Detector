@@ -8,7 +8,29 @@ from pathlib import Path
 import pytest
 
 from app.ml.video_detector import analyze_video, _video_info
-from app.ml.vram_manager import get_vram_stats
+from app.ml.vram_manager import get_vram_stats, release_all_model_singletons
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _clean_vram_baseline():
+    """
+    Release every cross-modality model singleton before this module's tests run.
+
+    WHY THIS EXISTS: production evicts a modality's weights the instant its
+    request completes (`serialized_gpu_inference` -> `evict_gpu_models`), so no
+    two modalities share the 6 GB RTX 4050. pytest ordering does not honour that
+    discipline. A text test run earlier in the session parks the RoBERTa / Qwen /
+    Binoculars weights on the GPU, and the video tests below then measure their
+    own footprint PLUS those parked weights — inflating `memory_allocated` past
+    the 5 GB ceiling even though the video path alone sits at ~1.6 GB. Replaying
+    the governor's eviction contract here makes the VRAM assertion a property of
+    the video pipeline instead of a function of which test ran first.
+
+    Module scope on purpose: the eviction happens once, before the module's first
+    test, so this module's own reloads are not repeated per test.
+    """
+    release_all_model_singletons()
+    yield
 
 
 def test_video_info_extraction():

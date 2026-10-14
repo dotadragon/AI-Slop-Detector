@@ -28,8 +28,8 @@ def _get_frames(file_path: str, max_frames: int = 8, fps: float = 1.0) -> Genera
     """Extract up to max_frames keyframes spaced evenly across video duration. Falls back to placeholders if cv2 missing."""
     try:
         cv2 = _load_cv2()  # ponytail: lazy import
-    except ImportError:
-        logger.warning("OpenCV not installed — using fallback frames")
+    except ImportError as exc:
+        logger.warning("cv2_import_failed_using_fallback_frames", error=str(exc), operation="frame_extraction")
         for i in range(max_frames):
             f = np.full((256, 256, 3), 128, dtype=np.uint8)
             f[:, :, 0] = int(255 * i / max_frames)
@@ -119,7 +119,8 @@ def _detect_faces_and_crops(frame: np.ndarray) -> list[Image.Image]:
             if cropped.size > 0:
                 crops.append(Image.fromarray(cropped).resize((224, 224), Image.Resampling.LANCZOS))
         return crops
-    except Exception:
+    except Exception as exc:
+        logger.warning("face_detection_failed", error=str(exc), exc_type=type(exc).__name__, operation="face_crop", modality="video")
         return []
 
 
@@ -136,7 +137,7 @@ def _video_info(file_path: str) -> dict:
     try:
         cv2 = _load_cv2()
         cap = cv2.VideoCapture(file_path)
-        info = {
+        info: dict[str, int | float] = {
             "fps": round(cap.get(cv2.CAP_PROP_FPS) or 30, 1),
             "total_frames": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
             "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -145,7 +146,8 @@ def _video_info(file_path: str) -> dict:
         info["duration_seconds"] = round(info["total_frames"] / max(info["fps"], 1), 1)
         cap.release()
         return info
-    except Exception:
+    except Exception as exc:
+        logger.warning("video_info_extraction_failed", error=str(exc), exc_type=type(exc).__name__, operation="video_info", modality="video")
         return {"fps": 30, "total_frames": 300, "duration_seconds": 10, "width": 1920, "height": 1080, "note": "cv2 not available"}
 
 
@@ -287,7 +289,7 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
         "vram_stats": get_vram_stats(),
     }
 
-    scores, frame_data, prev_gray, prev_flow = [], [], None, None
+    scores, frame_data, prev_gray, prev_flow, prev_frame_rgb = [], [], None, None, None
     any_synthid_detected = False
     v_proc, v_model, v_torch, v_device = _load_video_deepfake_model()
 
@@ -324,8 +326,8 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
                         v_probs = v_torch.softmax(v_logits, dim=-1).cpu().tolist()
                     # Label 1 is 'Fake' in dima806/deepfake_vs_real_image_detection
                     crop_fake_scores.append(round(float(v_probs[1]), 3))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("face_crop_inference_failed", error=str(exc), exc_type=type(exc).__name__, operation="face_deepfake_inference", modality="video", frame_index=i)
             if crop_fake_scores:
                 face_fake_prob = max(crop_fake_scores)
 
@@ -365,11 +367,29 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
                     accel = np.sqrt((flow[..., 0] - prev_flow[..., 0]) ** 2 + (flow[..., 1] - prev_flow[..., 1]) ** 2)
                     temporal_jitter = round(float(np.mean(accel)) / 10.0, 4)
                 prev_flow = flow
-            except Exception:
+            except Exception as exc:
+                logger.warning("optical_flow_failed", error=str(exc), exc_type=type(exc).__name__, operation="farneback_flow", modality="video")
                 diff = np.abs(gray_u8.astype("float32") - prev_gray.astype("float32"))
                 temporal_change = round(float(np.mean(diff)) / 255.0, 4)
                 temporal_flicker = round(float(np.std(diff)) / 255.0, 4)
         prev_gray = gray_u8
+
+        # v4.1 Zero-VRAM Temporal Consistency (color & identity histogram correlation)
+        color_stability = 1.0
+        if prev_frame_rgb is not None and cv2:
+            try:
+                corrs = []
+                for ch in range(3):
+                    h1 = cv2.calcHist([prev_frame_rgb], [ch], None, [64], [0, 256]).flatten()
+                    h2 = cv2.calcHist([frame], [ch], None, [64], [0, 256]).flatten()
+                    s1, s2 = h1.sum(), h2.sum()
+                    if s1 > 0 and s2 > 0:
+                        corrs.append(float(cv2.compareHist(h1 / s1, h2 / s2, cv2.HISTCMP_CORREL)))
+                if corrs:
+                    color_stability = round(float(np.mean(corrs)), 4)
+            except Exception:
+                color_stability = 1.0
+        prev_frame_rgb = frame
 
         # Generative video often exhibits abnormal inter-frame warping / high-frequency motion jitter
         if (temporal_flicker > 0.08 or temporal_jitter > 0.06) and frame_ai_score >= 0.40 and not is_screen_rec:
@@ -385,6 +405,7 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
             "temporal_change": temporal_change,
             "temporal_flicker": temporal_flicker,
             "temporal_jitter": temporal_jitter,
+            "color_stability": color_stability,
             "synthid_detected": is_synthid,
         }
         frame_data.append(fd)
@@ -401,6 +422,7 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
             "frame_score": round(frame_ai_score, 3),
             "faces_detected": len(face_crops),
             "temporal_change": temporal_change,
+            "color_stability": color_stability,
             "thumbnail_b64": _thumbnail(frame),
         }
 

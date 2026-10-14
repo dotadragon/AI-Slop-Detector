@@ -1,0 +1,67 @@
+name: SLOP CI - Integrity & Regression Gates
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'slop/backend/app/ml/**'
+      - 'slop/backend/**'
+      - 'Model/fusion/**'
+      - 'golden_set/**'
+      - 'heldout_set/**'
+      - 'scripts/eval_image_regression_gate.py'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'slop/backend/app/ml/**'
+      - 'slop/backend/**'
+      - 'Model/fusion/**'
+      - 'golden_set/**'
+      - 'heldout_set/**'
+      - 'scripts/eval_image_regression_gate.py'
+      - '.github/workflows/ci.yml'
+
+jobs:
+  backend-checks:
+    name: Backend Tests & Forensic Integrity Gates
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r slop/backend/requirements-core.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Verify Environment & Security Directives
+        run: |
+          python scripts/verify_env.py
+
+      - name: Run Backend Test Suite
+        run: |
+          pytest slop/backend/tests -v --ignore=slop/backend/tests/test_image_regression_gate.py
+
+      - name: Automated Image Verdict Regression Gate (Golden + Heldout Sets)
+        env:
+          MAX_ALLOWED_IMAGE_FLIPS: "0"
+          MAX_ALLOWED_IMAGE_REGRESSIONS: "0"
+        run: |
+          # Fails the build if more than N verdicts flip versus the committed baseline
+          python scripts/eval_image_regression_gate.py --max-flips 0 --max-regressions 0 --output-json image_regression_report.json
+
+      - name: Upload Regression Gate Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-gate-report
+          path: image_regression_report.json

@@ -6,6 +6,7 @@ import "./index.css";
 // ponytail: init theme from localStorage before first paint
 const savedTheme = localStorage.getItem("slop_theme") || "dark";
 document.documentElement.setAttribute("data-theme", savedTheme);
+document.documentElement.classList.toggle("dark", savedTheme === "dark");
 
 // On-demand Sentry loading: only load ~1.1MB telemetry bundle if DSN is configured
 if (import.meta.env.VITE_SENTRY_DSN) {

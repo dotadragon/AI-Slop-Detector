@@ -1,15 +1,76 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import gsap from "gsap";
-import { Shield, ShieldCheck, Brain, Eye, Cpu, Sparkles, AlertTriangle, Fingerprint, FileText, Layers } from "lucide-react";
-import type { DetectionResult } from "../../types";
+import { Shield, ShieldCheck, Brain, Eye, Cpu, Sparkles, AlertTriangle, Fingerprint, FileText, Layers, Scale, TrendingDown, TrendingUp, CircleCheck, ChevronDown } from "lucide-react";
+import type { DetectionResult, MixedAuthorshipInfo } from "../../types";
 import { ScanningHUD } from "./ScanningHUD";
 import { HeatmapOverlay } from "./HeatmapOverlay";
 import { ScoreCard } from "./ScoreCard";
 import { SentenceHighlight } from "./SentenceHighlight";
 import { SignalGrid } from "./SignalGrid";
 import { VideoTimeline } from "./VideoTimeline";
-import { ThreeDForensicScanner } from "../ui/ThreeDForensicScanner";
+
+// Code-split: the animated 3D scanner (and its animejs dependency) only loads
+// when the empty state is actually rendered. Styled shimmer fallback keeps
+// layout stable — no visual/behavior change, smaller initial bundle.
+const ThreeDForensicScanner = lazy(() =>
+  import("../ui/ThreeDForensicScanner").then((module) => ({ default: module.ThreeDForensicScanner }))
+);
+
+/**
+ * Calibrated confidence band chip for text results.
+ *
+ * The band and its zone edges come exclusively from the API response
+ * (`confidence_band` + `zone_low`/`zone_high`, derived server-side from the
+ * promoted calibrator artifact). No band decision is made in the frontend.
+ */
+function ConfidenceBandChip({ result }: { result: DetectionResult }) {
+  const band = result.confidence_band ?? (result.signals?.confidence_band as string | undefined);
+  if (!band) return null;
+
+  const zoneLow = result.zone_low;
+  const zoneHigh = result.zone_high;
+  const bandLabels: Record<string, string> = {
+    DEFINITELY_HUMAN: "Clear Human",
+    LIKELY_HUMAN: "Likely Human",
+    UNCERTAIN: "Ambiguous",
+    LIKELY_AI: "Likely AI",
+    DEFINITELY_AI: "Clear AI",
+  };
+  const label = bandLabels[band] ?? band;
+  const tone =
+    band === "DEFINITELY_HUMAN"
+      ? "human"
+      : band === "LIKELY_HUMAN"
+        ? "likely-human"
+        : band === "UNCERTAIN"
+          ? "ambiguous"
+          : band === "LIKELY_AI"
+            ? "likely-ai"
+            : "ai";
+
+  return (
+    <div className="confidence-band-chip-wrap" role="status" aria-label={`Calibrated confidence band: ${label}`}>
+      <span className={`confidence-band-chip ${tone}`}>
+        <CircleCheck size={14} />
+        <span>{label}</span>
+      </span>
+      {zoneLow !== undefined && zoneHigh !== undefined && (
+        <span className="band-zone-edges">
+          AI zone begins at {Math.round(zoneLow * 100)}% · Clear AI at {Math.round(zoneHigh * 100)}%
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ThreeDForensicScannerFallback() {
+  return (
+    <Suspense fallback={<div className="scanner-suspense-fallback" aria-hidden="true" />}>
+      <ThreeDForensicScanner size="sm" interactive={true} />
+    </Suspense>
+  );
+}
 
 function ProvenanceBadge({ signals }: { signals?: Record<string, unknown> }) {
   if (!signals) return null;
@@ -59,6 +120,84 @@ function ProvenanceBadge({ signals }: { signals?: Record<string, unknown> }) {
         <div className="inference-badge heuristic">
           <Eye size={14} />
           <span>Heuristic Analysis v3.0</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HeuristicOverrideNotice({ result }: { result: DetectionResult }) {
+  const explanation =
+    result.heuristic_override_explanation ||
+    (result.signals?.heuristic_override_explanation as string | undefined);
+
+  const rawNeural =
+    (result.signals?.model_ai_probability ??
+      result.signals?.neural_ai_score) as number | undefined;
+
+  // Material override threshold: |overall - neural| > 0.30 OR explicit explanation exists
+  const hasMaterialDelta =
+    rawNeural !== undefined && Math.abs(result.overall_score - rawNeural) > 0.30;
+
+  if (!explanation && !hasMaterialDelta) return null;
+
+  const neuralPct = rawNeural !== undefined ? Math.round(rawNeural * 100) : null;
+  const finalPct = Math.round(result.overall_score * 100);
+  const delta = rawNeural !== undefined ? result.overall_score - rawNeural : 0;
+  const isDownward = delta < 0;
+
+  const defaultExplanation = isDownward
+    ? `Neural model: ${neuralPct ?? ""}% AI-like, but corrected downward: forensic heuristics identified authentic physical sensor or drawing characteristics.`
+    : `Neural model: ${neuralPct ?? ""}% AI-like, but corrected upward: forensic spectral harmonics and compression artifacts indicate synthetic generation.`;
+
+  const displayText = explanation || defaultExplanation;
+
+  return (
+    <div
+      className={`heuristic-override-card ${isDownward ? "downward" : "upward"}`}
+      role="region"
+      aria-label="Forensic Heuristic Signal Reconciliation"
+    >
+      <div className="override-header">
+        <div className="override-title-wrap">
+          <Scale size={15} className={isDownward ? "text-emerald-400" : "text-amber-400"} />
+          <span className="override-heading">Heuristic Signal Reconciliation</span>
+        </div>
+        <span className={`override-direction-badge ${isDownward ? "downward" : "upward"}`}>
+          {isDownward ? (
+            <>
+              <TrendingDown size={12} />
+              <span>Corrected Downward</span>
+            </>
+          ) : (
+            <>
+              <TrendingUp size={12} />
+              <span>Corrected Upward</span>
+            </>
+          )}
+        </span>
+      </div>
+
+      <p className="override-explanation-text">{displayText}</p>
+
+      {neuralPct !== null && (
+        <div className="override-comparison-strip">
+          <div className="comparison-col">
+            <span className="col-label">Neural Model</span>
+            <span className="col-value neural">{neuralPct}%</span>
+          </div>
+          <div className="comparison-arrow">➔</div>
+          <div className="comparison-col">
+            <span className="col-label">Forensic Delta</span>
+            <span className={`col-value ${isDownward ? "downward" : "upward"}`}>
+              {delta >= 0 ? "+" : ""}{Math.round(delta * 100)}%
+            </span>
+          </div>
+          <div className="comparison-arrow">➔</div>
+          <div className="comparison-col">
+            <span className="col-label">Final Consensus</span>
+            <span className="col-value final">{finalPct}%</span>
+          </div>
         </div>
       )}
     </div>
@@ -161,11 +300,16 @@ function LLMAttributionCard({ result }: { result: DetectionResult }) {
   );
 }
 
-function ModelHint({ hint }: { hint?: string }) {
+function ModelHint({ hint, explanation }: { hint?: string; explanation?: string }) {
   if (!hint) return null;
+  let cleanHint = hint;
+  if (explanation && cleanHint.startsWith(explanation)) {
+    cleanHint = cleanHint.slice(explanation.length).trim();
+  }
+  if (!cleanHint) return null;
   return (
     <p className="hint">
-      {hint}
+      {cleanHint}
     </p>
   );
 }
@@ -174,18 +318,18 @@ function DocumentSectionsHeatmap({ sections }: { sections?: DetectionResult["sec
   if (!sections || sections.length === 0) return null;
 
   return (
-    <div className="document-sections-card" style={{ marginTop: "16px", background: "#0b0f19", border: "1px solid #1e293b", borderRadius: "8px", padding: "16px" }}>
+    <div className="document-sections-card" style={{ marginTop: "16px", background: "var(--bg-card)", border: "1px solid var(--border-card)", borderRadius: "8px", padding: "16px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Layers size={16} className="text-cyan-400" />
-          <span style={{ fontSize: "13px", fontWeight: 700, color: "#f8fafc" }}>Document Section Threat Map</span>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>Document Section Threat Map</span>
         </div>
-        <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace" }}>{sections.length} Sections Analyzed</span>
+        <span style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "monospace" }}>{sections.length} Sections Analyzed</span>
       </div>
 
-      <div style={{ display: "flex", height: "8px", borderRadius: "4px", overflow: "hidden", marginBottom: "14px", background: "#1e293b", gap: "2px" }}>
+      <div style={{ display: "flex", height: "8px", borderRadius: "4px", overflow: "hidden", marginBottom: "14px", background: "var(--border-card)", gap: "2px" }}>
         {sections.map((sec) => {
-          const color = sec.score >= 0.7 ? "#f43f5e" : sec.score >= 0.4 ? "#f59e0b" : "#10b981";
+          const color = sec.score > 0.70 ? "#f43f5e" : sec.score >= 0.35 ? "#f59e0b" : "#10b981";
           return (
             <div
               key={sec.index}
@@ -202,8 +346,8 @@ function DocumentSectionsHeatmap({ sections }: { sections?: DetectionResult["sec
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "220px", overflowY: "auto" }}>
         {sections.map((sec) => {
-          const badgeColor = sec.score >= 0.7 ? "#f43f5e" : sec.score >= 0.4 ? "#f59e0b" : "#10b981";
-          const label = sec.score >= 0.7 ? "AI Generated" : sec.score >= 0.4 ? "Mixed" : "Human";
+          const badgeColor = sec.score > 0.70 ? "#f43f5e" : sec.score >= 0.35 ? "#f59e0b" : "#10b981";
+          const label = sec.score > 0.70 ? "AI Generated" : sec.score >= 0.35 ? "Mixed" : "Human";
           return (
             <div
               key={sec.index}
@@ -212,7 +356,7 @@ function DocumentSectionsHeatmap({ sections }: { sections?: DetectionResult["sec
                 alignItems: "flex-start",
                 justifyContent: "space-between",
                 padding: "8px 10px",
-                background: "#07090e",
+                background: "var(--bg-page)",
                 borderRadius: "4px",
                 borderLeft: `3px solid ${badgeColor}`,
                 fontSize: "12px",
@@ -221,10 +365,10 @@ function DocumentSectionsHeatmap({ sections }: { sections?: DetectionResult["sec
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
-                  <span style={{ fontWeight: 700, color: "#cbd5e1" }}>Sec #{sec.index + 1}</span>
-                  <span style={{ fontSize: "10px", color: "#64748b" }}>({sec.word_count} words)</span>
+                  <span style={{ fontWeight: 700, color: "var(--text-main)" }}>Sec #{sec.index + 1}</span>
+                  <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>({sec.word_count} words)</span>
                 </div>
-                <p style={{ color: "#94a3b8", fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", margin: 0 }}>
                   {sec.preview}
                 </p>
               </div>
@@ -284,6 +428,84 @@ function DossierExportAction({ jobId }: { jobId?: string }) {
   );
 }
 
+function ConsolidatedVerdictPill({ score }: { score: number }) {
+  let label: string;
+  let tone: "ai" | "authentic" | "uncertain";
+  let Icon = AlertTriangle;
+
+  if (score > 0.70) {
+    label = "AI Detected";
+    tone = "ai";
+    Icon = AlertTriangle;
+  } else if (score < 0.35) {
+    label = "Authentic";
+    tone = "authentic";
+    Icon = ShieldCheck;
+  } else {
+    label = "Uncertain";
+    tone = "uncertain";
+    Icon = Scale;
+  }
+
+  return (
+    <div className="consolidated-verdict-wrap" role="status" aria-label={`Consolidated verdict: ${label}`}>
+      <span className={`consolidated-pill pill-${tone}`}>
+        <Icon size={14} className="consolidated-pill-icon" />
+        <span>{label}</span>
+      </span>
+    </div>
+  );
+}
+
+function CodeVerdictBadge({ result }: { result: DetectionResult }) {
+  const isCode = result.signals?.is_code;
+  if (isCode !== 1.0 && isCode !== 1) return null;
+
+  const score = result.overall_score;
+  const isHuman = score < 0.20;
+  const isAi = score > 0.70;
+
+  const badgeText = isHuman
+    ? "MANUAL CODED (HUMAN)"
+    : isAi
+    ? "VIBE CODED (AI)"
+    : "MIXED / UNVERIFIED CODE";
+
+  const badgeClass = isHuman ? "code-badge-human" : isAi ? "code-badge-ai" : "code-badge-mixed";
+
+  return (
+    <div className="code-verdict-container" role="status" aria-label={`Code Forensics Verdict: ${badgeText}`}>
+      <span className={`code-verdict-badge ${badgeClass}`}>
+        <span>{badgeText}</span>
+      </span>
+      <p className="code-verdict-subtitle">
+        Code Forensics Active: Evaluated via AST &amp; Identifier Structure.
+      </p>
+    </div>
+  );
+}
+
+function MixedAuthorshipBadge({ result }: { result: DetectionResult }) {
+  const info = result.mixed_authorship || (result.signals?.mixed_authorship as MixedAuthorshipInfo | undefined);
+  if (!info || !info.is_mixed_authorship) return null;
+
+  const aiPct = Math.round(info.ai_sentence_ratio * 100);
+  const humanPct = 100 - aiPct;
+
+  return (
+    <div className="mixed-authorship-card" role="status" aria-label="Mixed Authorship Detected">
+      <div className="mixed-authorship-header">
+        <Scale size={14} className="text-amber-400" />
+        <span className="mixed-authorship-title">Mixed Authorship Detected</span>
+        <span className="mixed-authorship-badge">{info.transitions} transitions</span>
+      </div>
+      <p className="mixed-authorship-desc">
+        Document exhibits transitions between AI-drafted ({aiPct}%) and human-written ({humanPct}%) content blocks.
+      </p>
+    </div>
+  );
+}
+
 export function ResultPanel({
   result,
   loading,
@@ -308,43 +530,22 @@ export function ResultPanel({
         duration: 0.4,
       })
         .from(
-          ".provenance-badges > div",
+          ".consolidated-verdict-wrap",
           {
-            y: 10,
+            y: 8,
             opacity: 0,
-            scale: 0.95,
-            duration: 0.3,
-            stagger: 0.06,
+            duration: 0.25,
           },
           "-=0.2"
         )
         .from(
-          ".attribution-card",
+          ".technical-signals-drawer",
           {
-            y: 18,
+            y: 12,
             opacity: 0,
-            duration: 0.4,
+            duration: 0.3,
           },
           "-=0.15"
-        )
-        .from(
-          ".signal",
-          {
-            y: 14,
-            opacity: 0,
-            duration: 0.3,
-            stagger: 0.04,
-          },
-          "-=0.2"
-        )
-        .from(
-          ".signal-meter > div",
-          {
-            width: "0%",
-            duration: 0.6,
-            stagger: 0.04,
-          },
-          "-=0.2"
         )
         .from(
           ".heatmap, .video-timeline-panel, .sentence-highlights, .hint",
@@ -399,24 +600,49 @@ export function ResultPanel({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <ThreeDForensicScanner size="sm" interactive={true} />
+            <ThreeDForensicScannerFallback />
             <strong className="text-gray-300" style={{ marginTop: 12 }}>Awaiting Sample</strong>
             <span className="text-gray-500 text-sm">Upload an image, video, or paste text to initialize real-time neural detection</span>
           </motion.div>
         )}
 
         {result && !loading && (
-          <div key="result" ref={resultContainerRef}>
+          <div key="result" ref={resultContainerRef} className="result-container-flow">
             <ScoreCard score={result.overall_score} />
-            <ProvenanceBadge signals={result.signals} />
-            <LLMAttributionCard result={result} />
-            <AttributionCard result={result} />
-            <SignalGrid signals={result.signals} />
+            <ConsolidatedVerdictPill score={result.overall_score} />
+            <CodeVerdictBadge result={result} />
+            <MixedAuthorshipBadge result={result} />
+
+            {/* Collapsible Technical Signals & Forensic Drawer */}
+            <details className="technical-signals-drawer">
+              <summary className="technical-signals-summary">
+                <div className="summary-left">
+                  <Layers size={14} className="summary-icon" />
+                  <span>Technical Signals & Forensic Breakdown</span>
+                </div>
+                <ChevronDown size={14} className="summary-chevron" />
+              </summary>
+              <div className="technical-signals-content">
+                <ConfidenceBandChip result={result} />
+                <ProvenanceBadge signals={result.signals} />
+                <HeuristicOverrideNotice result={result} />
+                <LLMAttributionCard result={result} />
+                <AttributionCard result={result} />
+                <SignalGrid signals={result.signals} />
+              </div>
+            </details>
+
             <DocumentSectionsHeatmap sections={result.section_scores} />
             <HeatmapOverlay heatmap={result.heatmap_b64} gradcamHeatmap={result.gradcam_heatmap_b64} prnuHeatmap={result.prnu_heatmap_b64} />
             <VideoTimeline result={result} />
             <SentenceHighlight sentences={result.sentences} />
-            <ModelHint hint={result.model_hint} />
+            <ModelHint
+              hint={result.model_hint}
+              explanation={
+                result.heuristic_override_explanation ||
+                (result.signals?.heuristic_override_explanation as string | undefined)
+              }
+            />
             <DossierExportAction jobId={result.job_id} />
           </div>
         )}

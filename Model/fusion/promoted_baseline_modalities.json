@@ -1,0 +1,12 @@
+{
+ "image": {
+  "balanced_accuracy": 0.5,
+  "accuracy_pct": 76.19,
+  "n": 42
+ },
+ "video": {
+  "balanced_accuracy": 0.5,
+  "accuracy_pct": 50.0,
+  "n": 8
+ }
+}

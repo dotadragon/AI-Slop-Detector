@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 
 # Add backend to path
-root = Path(__file__).resolve().parent
+root = Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == "scripts" else Path(__file__).resolve().parent
 backend_path = root / "slop" / "backend"
 sys.path.insert(0, str(backend_path))
 

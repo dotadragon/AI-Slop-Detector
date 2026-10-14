@@ -129,7 +129,7 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
   useEffect(() => stop, []);
 
   return (
-    <section className="input-panel live-panel" style={{ background: "#0b0f19", border: "1px solid #1e293b", borderRadius: "8px", padding: "16px" }}>
+    <section className="input-panel live-panel" style={{ background: "var(--bg-card)", border: "1px solid var(--border-card)", borderRadius: "8px", padding: "16px", color: "var(--text-main)" }}>
       {/* Source Selector Controls */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
         <div style={{ display: "flex", gap: "6px" }}>
@@ -155,7 +155,7 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
           </button>
         </div>
 
-        <span style={{ fontSize: "11px", color: streaming ? "#10b981" : "#64748b", fontFamily: "monospace", display: "flex", alignItems: "center", gap: "6px" }}>
+        <span style={{ fontSize: "11px", color: streaming ? "#10b981" : "var(--text-muted)", fontFamily: "monospace", display: "flex", alignItems: "center", gap: "6px" }}>
           {streaming && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />}
           {streaming ? "TELEMETRY LIVE (2.5 FPS)" : "IDLE"}
         </span>
@@ -167,10 +167,10 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
         style={{
           position: "relative",
           aspectRatio: "16/9",
-          background: "#07090e",
+          background: "var(--bg-page)",
           borderRadius: "6px",
           overflow: "hidden",
-          border: "1px solid #1e293b",
+          border: "1px solid var(--border-card)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

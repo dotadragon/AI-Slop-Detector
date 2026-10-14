@@ -195,6 +195,32 @@ def test_production_secret_key_validation():
         Settings(app_env="production", secret_key="dev-secret-change-me-dev-secret-change-me")
 
 
+def test_production_secret_key_entropy_floors():
+    """Weak production keys (short or low-diversity) must fail startup validation."""
+    import pytest
+    from app.core.config import Settings
+
+    # too short (< 32 chars) but otherwise diverse
+    with pytest.raises(ValueError, match="at least 32 characters"):
+        Settings(app_env="production", secret_key="Ab3xK9mQpL2vZ7rT")
+    # long enough but only 3 distinct chars (padding-style key)
+    with pytest.raises(ValueError, match="too little character diversity"):
+        Settings(app_env="production", secret_key="aAbBcCdDaAbBcCdDaAbBcCdDaAbBcCdD")
+    # 31 chars, diverse — still under the floor
+    with pytest.raises(ValueError, match="at least 32 characters"):
+        Settings(app_env="production", secret_key="Ab3xK9mQpL2vZ7rT8wN5yE2hJ4uM6sX")
+
+
+def test_production_secret_key_accepts_strong_key():
+    """A real 32+ char high-diversity key must pass production validation."""
+    import secrets
+    from app.core.config import Settings
+
+    strong = secrets.token_urlsafe(48)  # 64 url-safe chars, high diversity
+    s = Settings(app_env="production", secret_key=strong)
+    assert s.secret_key == strong
+
+
 def test_double_extension_and_embedded_executable_blocked():
     """Validates that filenames with double extensions or embedded blocked extensions are rejected."""
     from app.utils.file_handler import is_extension_blocked

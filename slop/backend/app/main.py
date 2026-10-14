@@ -85,6 +85,36 @@ def create_app() -> FastAPI:
     async def health():
         return {"status": "ok", "app": settings.app_name}
 
+    @app.get("/metrics", include_in_schema=False)
+    async def prometheus_metrics():
+        """Prometheus text exposition of inference latency, failures, and VRAM high-water mark."""
+        from fastapi.responses import Response
+        from app.ml.vram_manager import render_prometheus_metrics
+        return Response(content=render_prometheus_metrics(), media_type="text/plain; version=0.0.4; charset=utf-8")
+
+    @app.get("/calibration", include_in_schema=False)
+    async def calibration_dashboard():
+        """Serve the public calibration & accuracy dashboard HTML."""
+        from fastapi.responses import HTMLResponse
+        from pathlib import Path
+        import sys
+        dashboard_path = None
+        for p in Path(__file__).resolve().parents:
+            cand = p / "dashboard" / "eval_dashboard.html"
+            if cand.exists():
+                dashboard_path = cand
+                break
+            gen_script = p / "generate_dashboard.py"
+            if gen_script.exists():
+                import subprocess
+                subprocess.run([sys.executable, str(gen_script)], check=False)
+                if cand.exists():
+                    dashboard_path = cand
+                    break
+        if dashboard_path and dashboard_path.exists():
+            return HTMLResponse(content=dashboard_path.read_text(encoding="utf-8"), status_code=200)
+        return HTMLResponse(content="<html><body><h2>Calibration dashboard not generated yet.</h2></body></html>", status_code=404)
+
     return app
 
 

@@ -2,12 +2,16 @@ import { useMutation } from "@tanstack/react-query";
 import { analyzeImage } from "../api/image";
 import { analyzeText, uploadText } from "../api/text";
 import { uploadVideo } from "../api/video";
+import { uploadDocument } from "../api/document";
+import { uploadAudio } from "../api/audio";
 
 export function useDetection() {
   return {
     text: useMutation({ mutationFn: analyzeText }),
     textUpload: useMutation({ mutationFn: uploadText }),
     image: useMutation({ mutationFn: analyzeImage }),
-    video: useMutation({ mutationFn: uploadVideo })
+    video: useMutation({ mutationFn: uploadVideo }),
+    document: useMutation({ mutationFn: uploadDocument }),
+    audio: useMutation({ mutationFn: uploadAudio }),
   };
 }

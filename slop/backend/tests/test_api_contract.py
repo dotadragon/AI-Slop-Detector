@@ -21,3 +21,16 @@ def test_analyze_response_contract():
     expected_fields = {"job_id", "result", "status"}
     actual_fields = set(AnalyzeResponse.model_fields.keys())
     assert expected_fields == actual_fields
+
+
+def test_stats_telemetry_alias_contract():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    response = client.get("/api/v1/stats")
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("status") == "online"
+    assert "telemetry" in data
+

@@ -8,6 +8,7 @@ import { Nav } from "./components/layout/Nav";
 import { Spinner } from "./components/ui/Spinner";
 
 const Billing = lazy(() => import("./pages/Billing").then((module) => ({ default: module.Billing })));
+const Calibration = lazy(() => import("./pages/Calibration").then((module) => ({ default: module.Calibration })));
 const Changelog = lazy(() => import("./pages/Changelog").then((module) => ({ default: module.Changelog })));
 const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const Detector = lazy(() => import("./pages/Detector").then((module) => ({ default: module.Detector })));
@@ -69,6 +70,7 @@ export function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/calibration" element={<Calibration />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />

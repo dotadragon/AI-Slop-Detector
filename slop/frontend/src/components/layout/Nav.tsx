@@ -17,9 +17,10 @@ export function Nav() {
       </Link>
 
       <div className="nav-links">
-        <NavLink to="/detector">Detector</NavLink>
-        <NavLink to="/dashboard">Dashboard</NavLink>
-        <NavLink to="/help">Docs</NavLink>
+        <NavLink to="/detector" className="nav-link-item">Detector</NavLink>
+        <NavLink to="/dashboard" className="nav-link-item">Dashboard</NavLink>
+        <NavLink to="/calibration" className="nav-link-item">Calibration</NavLink>
+        <NavLink to="/help" className="nav-link-item">Docs</NavLink>
         <button
           className="theme-toggle"
           onClick={toggle}

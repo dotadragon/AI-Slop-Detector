@@ -63,7 +63,10 @@ async def portal(payload: PortalRequest, user: User = Depends(current_user)):
 async def stripe_webhook(request: Request, stripe_signature: str | None = Header(default=None, alias="Stripe-Signature")):
     body = await request.body()
     if not settings.stripe_secret_key or not settings.stripe_webhook_secret or stripe is None:
-        return {"received": True, "mode": "configuration_required"}
+        raise HTTPException(status_code=503, detail="stripe_webhook_not_configured")
+
+    if not stripe_signature:
+        raise HTTPException(status_code=400, detail="missing_stripe_signature")
 
     try:
         event = stripe.Webhook.construct_event(body, stripe_signature, settings.stripe_webhook_secret)

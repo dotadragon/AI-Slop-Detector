@@ -1,3 +1,4 @@
+from app.models.feedback import UserFeedback
 from app.models.job import DetectionResult, Job
 from app.models.user import (
     EmailVerificationToken,
@@ -9,6 +10,7 @@ from app.models.user import (
 
 __all__ = [
     "DetectionResult",
+    "UserFeedback",
     "EmailVerificationToken",
     "Job",
     "PasswordResetToken",

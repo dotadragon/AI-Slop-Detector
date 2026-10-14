@@ -1,7 +1,26 @@
 {
-  "pythonPath": "C:\\Users\\karth\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+  "venvPath": "slop/backend",
+  "venv": ".venv",
   "extraPaths": [
     "slop/backend",
-    "C:\\Users\\karth\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages"
+    "slop/backend/.venv/Lib/site-packages"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingTypeStubs": false,
+  "reportAttributeAccessIssue": false,
+  "reportGeneralTypeIssues": false,
+  "reportOperatorIssue": false,
+  "reportArgumentType": false,
+  "reportIndexIssue": false,
+  "reportCallIssue": false,
+  "reportOptionalCall": false,
+  "executionEnvironments": [
+    {
+      "root": "slop/backend",
+      "extraPaths": [
+        "slop/backend",
+        "slop/backend/.venv/Lib/site-packages"
+      ]
+    }
   ]
 }

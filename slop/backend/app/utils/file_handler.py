@@ -23,11 +23,13 @@ TEXT_MIMES = {
 }
 IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/tiff", "image/bmp", "image/gif", "image/heic", "image/avif"}
 VIDEO_MIMES = {"video/mp4", "video/x-matroska", "video/quicktime", "video/x-msvideo", "video/webm", "video/x-flv"}
+AUDIO_MIMES = {"audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3", "audio/flac", "audio/ogg", "audio/x-m4a", "audio/mp4"}
 
 ALLOWED_EXTENSIONS = {
     "text": {".txt", ".pdf", ".doc", ".docx", ".md", ".rtf", ".csv"},
     "image": {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff", ".heic", ".avif"},
     "video": {".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv"},
+    "audio": {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aiff"},
 }
 
 BLOCKED_EXTENSIONS = {
@@ -56,11 +58,11 @@ def is_extension_blocked(filename: str) -> bool:
 
 
 def allowed_mimes(kind: str) -> set[str]:
-    return {"text": TEXT_MIMES, "image": IMAGE_MIMES, "video": VIDEO_MIMES}[kind]
+    return {"text": TEXT_MIMES, "image": IMAGE_MIMES, "video": VIDEO_MIMES, "audio": AUDIO_MIMES}[kind]
 
 
 def max_bytes(kind: str) -> int:
-    mb = {"text": settings.max_text_file_mb, "image": settings.max_image_file_mb, "video": settings.max_video_file_mb}[kind]
+    mb = {"text": settings.max_text_file_mb, "image": settings.max_image_file_mb, "video": settings.max_video_file_mb, "audio": settings.max_audio_file_mb}[kind]
     return mb * 1024 * 1024
 
 
@@ -97,11 +99,35 @@ def _sniff_mime(data: bytes, default: str) -> str:
         return "application/pdf"
     if data.startswith(b"PK\x03\x04"):
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    if b"ftyp" in data[4:32]:
+    if b"ftyp" in data[4:32] and len(data) >= 16:
+        # ISO-BMFF container: the brand at bytes 8-16 decides image vs video
+        brand = data[8:16]
+        if brand.startswith((b"heic", b"mif1", b"heix", b"heim", b"hevc")):
+            return "image/heic"
+        if brand.startswith(b"avif"):
+            return "image/avif"
         return "video/mp4"
     if data.startswith(b"\x1a\x45\xdf\xa3"):
         return "video/webm"
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return "audio/wav"
+    if data[:3] == b"ID3" or (len(data) > 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0):
+        return "audio/mpeg"
+    if data[:4] == b"fLaC":
+        return "audio/flac"
+    if data[:4] == b"OggS":
+        return "audio/ogg"
+    if b"ftyp" in data[4:32] and data[8:16].startswith((b"M4A ", b"m4a")):
+        return "audio/x-m4a"
     return default
+
+
+def _sniff_mime_strict(data: bytes) -> str | None:
+    """Strict magic-byte sniff: returns None when NO known signature matches.
+    Used for binary kinds (image/video) where trusting the client-declared
+    Content-Type as a fallback would enable MIME-confusion bypasses."""
+    result = _sniff_mime(data, default="__unknown__")
+    return None if result == "__unknown__" else result
 
 
 def extract_text_from_docx(data: bytes) -> str:
@@ -249,7 +275,16 @@ async def save_upload(upload: UploadFile, kind: str) -> tuple[Path, str, int]:
 
                 if first_chunk:
                     actual = _sniff_mime(chunk[:4096], declared)
-                    if declared not in allowed_mimes(kind) and actual not in allowed_mimes(kind):
+                    # Security hardening: for binary kinds a REAL magic-byte match is
+                    # mandatory. Trusting the client-declared Content-Type (even as a
+                    # fallback) enables MIME confusion attacks (e.g. arbitrary payload
+                    # disguised as image/png).
+                    if kind in {"image", "video", "audio"}:
+                        strict = _sniff_mime_strict(chunk[:4096])
+                        if strict is None or strict not in allowed_mimes(kind):
+                            raise HTTPException(status_code=415, detail="file_content_type_mismatch")
+                        actual = strict
+                    elif declared not in allowed_mimes(kind) and actual not in allowed_mimes(kind):
                         raise HTTPException(status_code=415, detail="unsupported_file_type")
                     first_chunk = False
 

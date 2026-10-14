@@ -6,7 +6,7 @@ from datetime import timedelta
 import pyotp
 import qrcode
 from fastapi import HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -26,8 +26,19 @@ from app.services.email import send_email
 from app.services.token_store import token_store
 
 
+TRUSTED_PROXIES = {"127.0.0.1", "::1", "localhost", "testclient"}
+
+
 def request_ip(request: Request) -> str | None:
-    return request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else None)
+    direct_ip = request.client.host if request.client else None
+    trusted = TRUSTED_PROXIES
+    if hasattr(settings, "trusted_proxies") and getattr(settings, "trusted_proxies"):
+        trusted = trusted.union({p.strip() for p in getattr(settings, "trusted_proxies").split(",") if p.strip()})
+    if direct_ip in trusted:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if forwarded:
+            return forwarded
+    return direct_ip
 
 
 async def register_user(session: AsyncSession, payload: RegisterRequest, request: Request) -> User:
@@ -95,7 +106,20 @@ async def login_user(session: AsyncSession, payload: LoginRequest, request: Requ
         await audit(session, "login_failed", ip, request.headers.get("user-agent"), user.id, {"reason": "bad_password"})
         raise HTTPException(status_code=401, detail="invalid_credentials")
     if user.totp_enabled:
-        totp_ok = bool(payload.totp_code and pyotp.TOTP(user.totp_secret).verify(payload.totp_code, valid_window=1))
+        totp_ok = False
+        if payload.totp_code:
+            if user.totp_secret and pyotp.TOTP(user.totp_secret).verify(payload.totp_code, valid_window=1):
+                totp_ok = True
+            else:
+                backup_codes_res = await session.scalars(
+                    select(TotpBackupCode).where(TotpBackupCode.user_id == user.id, TotpBackupCode.used.is_(False))
+                )
+                clean_code = payload.totp_code.strip().upper()
+                for b_code in backup_codes_res:
+                    if verify_password(clean_code, b_code.code_hash):
+                        b_code.used = True
+                        totp_ok = True
+                        break
         if not totp_ok:
             await audit(session, "totp_failed", ip, request.headers.get("user-agent"), user.id)
             raise HTTPException(status_code=401, detail="totp_required")
@@ -162,6 +186,10 @@ async def enable_2fa(session: AsyncSession, user: User) -> dict:
     img = qrcode.make(otp_uri)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
+
+    # Rotate backup codes: clear old unconsumed codes before generating fresh set
+    await session.execute(delete(TotpBackupCode).where(TotpBackupCode.user_id == user.id))
+
     backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
     for code in backup_codes:
         session.add(TotpBackupCode(user_id=user.id, code_hash=hash_password(code)))

@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ShieldCheck, ShieldAlert, AlertTriangle } from "lucide-react";
@@ -40,15 +39,10 @@ export function ScoreCard({ score }: { score: number }) {
     }
   }, [pct, circumference, offset]);
 
-  const Icon = score >= 0.72 ? ShieldAlert : score >= 0.42 ? AlertTriangle : ShieldCheck;
+  const Icon = score > 0.70 ? ShieldAlert : score >= 0.35 ? AlertTriangle : ShieldCheck;
 
   return (
-    <motion.div
-      className="score-card"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-    >
+    <div className="score-card">
       <div className="score-gauge-container">
         <svg className="score-svg" viewBox="0 0 120 120" width="112" height="112">
           {/* Background track circle */}
@@ -60,7 +54,7 @@ export function ScoreCard({ score }: { score: number }) {
             stroke="var(--bg3)"
             strokeWidth="8"
           />
-          {/* Animated score indicator */}
+          {/* Clean score indicator without neon drop-shadow */}
           <circle
             ref={circleRef}
             cx="60"
@@ -74,7 +68,6 @@ export function ScoreCard({ score }: { score: number }) {
             strokeLinecap="round"
             transform="rotate(-90 60 60)"
             style={{
-              filter: `drop-shadow(0 0 6px ${color})`,
               transition: "stroke 0.3s ease",
             }}
           />
@@ -96,22 +89,23 @@ export function ScoreCard({ score }: { score: number }) {
           </span>
         </div>
         <p className="score-subtitle">
-          {score >= 0.72
+          {score > 0.70
             ? `${pct}% probability of AI-generated content detected`
-            : score >= 0.42
+            : score >= 0.35
             ? `${pct}% mixed heuristic & neural signals detected`
             : `${100 - pct}% confidence of authentic human photograph / graphic`}
         </p>
         <div className="score-bar-track">
-          <motion.div
+          <div
             className="score-bar-fill"
-            initial={{ width: 0 }}
-            animate={{ width: `${pct}%` }}
-            transition={{ duration: 0.9, ease: "easeOut" }}
-            style={{ background: color }}
+            style={{
+              width: `${pct}%`,
+              background: color,
+              transition: "width 0.9s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
           />
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

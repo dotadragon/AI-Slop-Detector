@@ -1,10 +1,16 @@
 import { Trash2, Image, FileText, Film, Camera, ExternalLink } from "lucide-react";
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
+import type { DetectorMode } from "../../types";
 import type { ScanEntry } from "../../hooks/useScanHistory";
 import { scoreColor } from "../../utils/validators";
 
-const MODE_ICONS = { image: Image, text: FileText, video: Film, live_image: Camera } as const;
+const MODE_ICONS: Partial<Record<DetectorMode, typeof FileText>> = {
+  image: Image,
+  text: FileText,
+  video: Film,
+  live_image: Camera,
+};
 
 function formatTime(ts: number): string {
   const d = new Date(ts);

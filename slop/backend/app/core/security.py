@@ -47,7 +47,7 @@ def decode_token(token: str, expected_type: str | None = None) -> dict[str, Any]
         raise ValueError("invalid_token") from exc
     if expected_type and payload.get("typ") != expected_type:
         raise ValueError("invalid_token_type")
-    return payload
+    return dict(payload)
 
 
 def create_access_token(user_id: str) -> str:

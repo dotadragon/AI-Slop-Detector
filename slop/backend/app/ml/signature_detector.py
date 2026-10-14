@@ -82,7 +82,13 @@ def _analyze_synthid_spectral_watermark(
 
         # Latent diffusion watermark detection calibrated for SDXL, Flux, Midjourney v6
         is_synthid_candidate = (boundary_grid > 7.8 and kurtosis < 8.2 and spectral_ratio > 0.28)
-        confidence = min(0.98, max(0.60, 0.40 * (spectral_ratio / 0.40) + 0.60 * min(1.0, boundary_grid / 15.0)))
+        # ponytail: A negative detection must never carry a high confidence score.
+        # Confidence is only meaningful for positive SynthID candidates; otherwise it stays near zero.
+        confidence = (
+            min(0.98, max(0.60, 0.40 * (spectral_ratio / 0.40) + 0.60 * min(1.0, boundary_grid / 15.0)))
+            if is_synthid_candidate
+            else round(min(0.10, 0.05 * (spectral_ratio / 0.40) + 0.05 * min(1.0, boundary_grid / 15.0)), 3)
+        )
 
         return {
             "is_synthid": is_synthid_candidate,
@@ -91,15 +97,22 @@ def _analyze_synthid_spectral_watermark(
             "boundary_grid": round(float(boundary_grid), 2),
             "kurtosis": round(float(kurtosis), 2),
         }
-    except Exception:
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "synthid_spectral_analysis_failed",
+            error=str(exc),
+            exc_type=type(exc).__name__,
+            operation="synthid_spectral",
+            modality="image",
+        )
         return {"is_synthid": False, "confidence": 0.0, "spectral_ratio": 0.0, "boundary_grid": 0.0, "kurtosis": 0.0}
 
 
 def _compute_focal_bbox(img_rgb: Image.Image) -> dict[str, float]:
     """Find localized bounding box around central high-saliency generative feature."""
     canvas = img_rgb.resize((256, 256), Image.Resampling.BILINEAR)
-    arr = np.array(canvas, dtype=np.float32)
-    gray = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+    gray = np.array(canvas.convert("L"), dtype=np.float32)
 
     grid_size = 8
     block = 256 // grid_size
@@ -158,8 +171,8 @@ def detect_digital_signature(
     generator_conf: float = 0.50
     bbox: dict[str, float] | None = None
 
-    # 1. Technical diagram / graphic document (only if neural model confirms non-generative content)
-    if is_diagram and (neural_ai_prob is None or neural_ai_prob < 0.70):
+    # 1. Technical diagram / graphic document (only if neural model confirms non-generative content <= 0.60)
+    if is_diagram and (neural_ai_prob is None or neural_ai_prob <= 0.60):
         return {
             "detected": False,
             "signature_type": "None",
@@ -276,7 +289,7 @@ def _inspect_metadata(pil_img: Image.Image, raw_bytes: bytes | None, neural_ai_p
 
     # Check PNG text chunks
     for k, v in info.items():
-        if isinstance(v, str):
+        if isinstance(v, str) and isinstance(k, str):
             text_chunks[k.lower()] = v
             lower_v = v.lower()
             if any(term in lower_v for term in ("steps:", "sampler:", "cfg scale:", "seed:", "negative prompt:")):

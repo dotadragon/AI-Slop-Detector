@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type DragEvent, type ChangeEvent } from "react";
-import { ImageUp, RefreshCw, Sparkles, Crosshair } from "lucide-react";
+import { ImageUp, RefreshCw, Sparkles, Crosshair, FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
 import type { DetectionResult } from "../../types";
 import { SignatureBoundingBox } from "./SignatureBoundingBox";
@@ -122,13 +122,6 @@ export function ImageUpload({ onFile, loading, result }: Props) {
                 <Crosshair size={13} />
                 <span>{showReticle ? "Reticle Visible" : "Reticle Hidden"}</span>
               </button>
-            )}
-
-            {signature?.detected && (
-              <span className="badge badge-emerald" title={signature.details}>
-                <Sparkles size={12} />
-                <span>{signature.signature_type}</span>
-              </span>
             )}
           </div>
         </motion.div>

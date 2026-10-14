@@ -16,11 +16,13 @@ export const useTheme = create<ThemeStore>((set) => ({
       const next = s.theme === "dark" ? "light" : "dark";
       localStorage.setItem("slop_theme", next);
       document.documentElement.setAttribute("data-theme", next);
+      document.documentElement.classList.toggle("dark", next === "dark");
       return { theme: next };
     }),
   set: (t: Theme) => {
     localStorage.setItem("slop_theme", t);
     document.documentElement.setAttribute("data-theme", t);
+    document.documentElement.classList.toggle("dark", t === "dark");
     return { theme: t };
   },
 }));

@@ -1,0 +1,54 @@
+{
+ "n": 150,
+ "balanced_accuracy": 0.6333,
+ "accuracy": 0.4333,
+ "macro_f1": 0.4321,
+ "ai_recall": 0.3,
+ "human_recall": 0.9667,
+ "ai_precision": 0.973,
+ "human_precision": 0.2566,
+ "per_gen": {
+  "ai/gpt2": {
+   "tp": 5,
+   "fp": 0,
+   "tn": 0,
+   "fn": 15
+  },
+  "ai/llama_chat": {
+   "tp": 2,
+   "fp": 0,
+   "tn": 0,
+   "fn": 18
+  },
+  "ai/mistral": {
+   "tp": 7,
+   "fp": 0,
+   "tn": 0,
+   "fn": 13
+  },
+  "ai/mistral_chat": {
+   "tp": 5,
+   "fp": 0,
+   "tn": 0,
+   "fn": 15
+  },
+  "ai/mpt": {
+   "tp": 10,
+   "fp": 0,
+   "tn": 0,
+   "fn": 10
+  },
+  "ai/mpt_chat": {
+   "tp": 7,
+   "fp": 0,
+   "tn": 0,
+   "fn": 13
+  },
+  "human/human": {
+   "tp": 0,
+   "fp": 1,
+   "tn": 29,
+   "fn": 0
+  }
+ }
+}

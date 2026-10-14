@@ -13,8 +13,16 @@ __pycache__/
 node_modules/
 dist/
 *.log
+*.tsbuildinfo
+nohup.out
+all_files.txt
+slop_files.txt
+_best_idx.npy
 *.mp4
 .DS_Store
 antigravity/
+.external/
+_backup/
+.claude/
 .venv/
 venv/

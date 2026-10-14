@@ -1,0 +1,670 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-10-04T16:51:34.285421+00:00",
+  "description": "Committed baseline for image detection verdicts across golden_set and heldout_set (n=66).",
+  "total_samples": 66,
+  "baseline_correct": 54,
+  "baseline_accuracy_pct": 81.82,
+  "samples": {
+    "media_1789755920467.png": {
+      "file": "media_1789755920467.png",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 0.974,
+      "baseline_verdict": "AI",
+      "neural_score": 0.9126,
+      "is_diagram": true,
+      "is_real_camera": false
+    },
+    "media_1789757571085.jpg": {
+      "file": "media_1789757571085.jpg",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 0.978,
+      "baseline_verdict": "AI",
+      "neural_score": 0.925,
+      "is_diagram": true,
+      "is_real_camera": false
+    },
+    "media_1789757572032.jpg": {
+      "file": "media_1789757572032.jpg",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 0.98,
+      "baseline_verdict": "AI",
+      "neural_score": 0.7678,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "media_1789757573221.jpg": {
+      "file": "media_1789757573221.jpg",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 0.948,
+      "baseline_verdict": "AI",
+      "neural_score": 0.7969,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "synthetic_latent_flow_1.png": {
+      "file": "synthetic_latent_flow_1.png",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 1.0,
+      "baseline_verdict": "AI",
+      "neural_score": 0.687,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "synthetic_latent_flow_2.png": {
+      "file": "synthetic_latent_flow_2.png",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 1.0,
+      "baseline_verdict": "AI",
+      "neural_score": 0.687,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "synthetic_latent_flow_3.png": {
+      "file": "synthetic_latent_flow_3.png",
+      "dataset": "golden/ai",
+      "ground_truth": "AI",
+      "baseline_score": 1.0,
+      "baseline_verdict": "AI",
+      "neural_score": 0.687,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "media_1789756069231.png": {
+      "file": "media_1789756069231.png",
+      "dataset": "golden/diagram",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.877,
+      "baseline_verdict": "AI",
+      "neural_score": 0.6607,
+      "is_diagram": true,
+      "is_real_camera": false
+    },
+    "orthogonal_architecture_diagram_1.png": {
+      "file": "orthogonal_architecture_diagram_1.png",
+      "dataset": "golden/diagram",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.001,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0956,
+      "is_diagram": true,
+      "is_real_camera": false
+    },
+    "orthogonal_architecture_diagram_2.png": {
+      "file": "orthogonal_architecture_diagram_2.png",
+      "dataset": "golden/diagram",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.001,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0956,
+      "is_diagram": true,
+      "is_real_camera": false
+    },
+    "camera_sensor_cfa_1.jpg": {
+      "file": "camera_sensor_cfa_1.jpg",
+      "dataset": "golden/human",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.026,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.1509,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "camera_sensor_cfa_2.jpg": {
+      "file": "camera_sensor_cfa_2.jpg",
+      "dataset": "golden/human",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.035,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.1755,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "camera_sensor_cfa_3.jpg": {
+      "file": "camera_sensor_cfa_3.jpg",
+      "dataset": "golden/human",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.032,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.1869,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "media_1789756044612.jpg": {
+      "file": "media_1789756044612.jpg",
+      "dataset": "golden/human",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.021,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.1686,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_000.png": {
+      "file": "sd_gallery_000.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.004,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0365,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_001.png": {
+      "file": "sd_gallery_001.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.94,
+      "baseline_verdict": "AI",
+      "neural_score": 0.4581,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_002.png": {
+      "file": "sd_gallery_002.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.541,
+      "baseline_verdict": "AI",
+      "neural_score": 0.2615,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_003.png": {
+      "file": "sd_gallery_003.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.998,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1819,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_004.png": {
+      "file": "sd_gallery_004.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.999,
+      "baseline_verdict": "AI",
+      "neural_score": 0.5651,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_005.png": {
+      "file": "sd_gallery_005.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.948,
+      "baseline_verdict": "AI",
+      "neural_score": 0.6794,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_006.png": {
+      "file": "sd_gallery_006.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.999,
+      "baseline_verdict": "AI",
+      "neural_score": 0.7077,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_007.png": {
+      "file": "sd_gallery_007.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.999,
+      "baseline_verdict": "AI",
+      "neural_score": 0.8123,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_008.png": {
+      "file": "sd_gallery_008.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 1.0,
+      "baseline_verdict": "AI",
+      "neural_score": 0.8189,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_009.png": {
+      "file": "sd_gallery_009.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.984,
+      "baseline_verdict": "AI",
+      "neural_score": 0.9024,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_010.png": {
+      "file": "sd_gallery_010.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.12,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0206,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_011.png": {
+      "file": "sd_gallery_011.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.585,
+      "baseline_verdict": "AI",
+      "neural_score": 0.0835,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_012.png": {
+      "file": "sd_gallery_012.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.005,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0653,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_013.png": {
+      "file": "sd_gallery_013.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.667,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1854,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_014.png": {
+      "file": "sd_gallery_014.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.005,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0966,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_015.png": {
+      "file": "sd_gallery_015.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 1.0,
+      "baseline_verdict": "AI",
+      "neural_score": 0.9107,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_016.png": {
+      "file": "sd_gallery_016.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.997,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1732,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_017.png": {
+      "file": "sd_gallery_017.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.186,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0918,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_018.png": {
+      "file": "sd_gallery_018.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.012,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.3206,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_019.png": {
+      "file": "sd_gallery_019.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.999,
+      "baseline_verdict": "AI",
+      "neural_score": 0.6972,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_020.png": {
+      "file": "sd_gallery_020.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.003,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.042,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_021.png": {
+      "file": "sd_gallery_021.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.575,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1061,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_022.png": {
+      "file": "sd_gallery_022.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.998,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1088,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_023.png": {
+      "file": "sd_gallery_023.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.674,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1059,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "sd_gallery_024.png": {
+      "file": "sd_gallery_024.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.999,
+      "baseline_verdict": "AI",
+      "neural_score": 0.5672,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_025.png": {
+      "file": "sd_gallery_025.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.999,
+      "baseline_verdict": "AI",
+      "neural_score": 0.8205,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "sd_gallery_026.png": {
+      "file": "sd_gallery_026.png",
+      "dataset": "heldout/ai_sdxl",
+      "ground_truth": "AI",
+      "baseline_score": 0.184,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0608,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0010.jpg": {
+      "file": "picsum_0010.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.163,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0206,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0011.jpg": {
+      "file": "picsum_0011.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.003,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0241,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0012.jpg": {
+      "file": "picsum_0012.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.315,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0525,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0013.jpg": {
+      "file": "picsum_0013.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.007,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0428,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0014.jpg": {
+      "file": "picsum_0014.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.365,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.013,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0015.jpg": {
+      "file": "picsum_0015.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.497,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0847,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0016.jpg": {
+      "file": "picsum_0016.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.97,
+      "baseline_verdict": "AI",
+      "neural_score": 0.058,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0017.jpg": {
+      "file": "picsum_0017.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.989,
+      "baseline_verdict": "AI",
+      "neural_score": 0.0184,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0018.jpg": {
+      "file": "picsum_0018.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.14,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.033,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0019.jpg": {
+      "file": "picsum_0019.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.321,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0719,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0020.jpg": {
+      "file": "picsum_0020.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.235,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0204,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0021.jpg": {
+      "file": "picsum_0021.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.185,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0965,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0022.jpg": {
+      "file": "picsum_0022.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.004,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0462,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0023.jpg": {
+      "file": "picsum_0023.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.015,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.3819,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0024.jpg": {
+      "file": "picsum_0024.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.377,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0125,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0025.jpg": {
+      "file": "picsum_0025.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.004,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0013,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0026.jpg": {
+      "file": "picsum_0026.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.452,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0079,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0027.jpg": {
+      "file": "picsum_0027.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.216,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0145,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0028.jpg": {
+      "file": "picsum_0028.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.602,
+      "baseline_verdict": "AI",
+      "neural_score": 0.1823,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0029.jpg": {
+      "file": "picsum_0029.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.006,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0359,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0030.jpg": {
+      "file": "picsum_0030.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.08,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0103,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0031.jpg": {
+      "file": "picsum_0031.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.004,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.1674,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0032.jpg": {
+      "file": "picsum_0032.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.005,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0051,
+      "is_diagram": false,
+      "is_real_camera": true
+    },
+    "picsum_0033.jpg": {
+      "file": "picsum_0033.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.448,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0355,
+      "is_diagram": false,
+      "is_real_camera": false
+    },
+    "picsum_0034.jpg": {
+      "file": "picsum_0034.jpg",
+      "dataset": "heldout/human_picsum",
+      "ground_truth": "HUMAN",
+      "baseline_score": 0.309,
+      "baseline_verdict": "HUMAN",
+      "neural_score": 0.0308,
+      "is_diagram": false,
+      "is_real_camera": true
+    }
+  }
+}

@@ -13,14 +13,15 @@ import sys
 from pathlib import Path
 
 # Add backend to sys.path
-backend_path = Path(__file__).resolve().parent / "slop" / "backend"
+ROOT = Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == "scripts" else Path(__file__).resolve().parent
+backend_path = ROOT / "slop" / "backend"
 sys.path.insert(0, str(backend_path))
 
 from app.ml.text_detector import analyze_text
 from app.ml.image_detector import analyze_image
 from app.ml.video_detector import analyze_video
 
-GOLDEN_SET_DIR = Path(__file__).resolve().parent / "golden_set"
+GOLDEN_SET_DIR = ROOT / "golden_set"
 
 
 def evaluate_text(quick: bool = False) -> dict:
@@ -207,7 +208,7 @@ def main():
         "video": vid_res,
     }
 
-    report_path = Path(__file__).resolve().parent / args.save
+    report_path = ROOT / args.save
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     print(f"Report saved to {report_path}\n")

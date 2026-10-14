@@ -1,0 +1,161 @@
+{
+  "train_metrics": {
+    "balanced_accuracy": 0.9995,
+    "accuracy": 0.9992,
+    "macro_f1": 0.999,
+    "ai_recall": 0.9989,
+    "human_recall": 1.0,
+    "ai_precision": 1.0,
+    "human_precision": 0.9972,
+    "per_gen": {
+      "ai/gpt2": {
+        "tp": 162,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/llama_chat": {
+        "tp": 150,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/mistral": {
+        "tp": 149,
+        "fp": 0,
+        "tn": 0,
+        "fn": 1
+      },
+      "ai/mistral_chat": {
+        "tp": 150,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/mpt": {
+        "tp": 162,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/mpt_chat": {
+        "tp": 150,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "human/casual": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 30,
+        "fn": 0
+      },
+      "human/email": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 30,
+        "fn": 0
+      },
+      "human/forum": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 30,
+        "fn": 0
+      },
+      "human/human": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 272,
+        "fn": 0
+      }
+    }
+  },
+  "val_metrics": {
+    "balanced_accuracy": 0.75,
+    "accuracy": 0.8278,
+    "macro_f1": 0.7753,
+    "ai_recall": 0.9833,
+    "human_recall": 0.5167,
+    "ai_precision": 0.8027,
+    "human_precision": 0.9394,
+    "per_gen": {
+      "ai/gpt2": {
+        "tp": 20,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/llama_chat": {
+        "tp": 20,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/mistral": {
+        "tp": 20,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/mistral_chat": {
+        "tp": 20,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "ai/mpt": {
+        "tp": 18,
+        "fp": 0,
+        "tn": 0,
+        "fn": 2
+      },
+      "ai/mpt_chat": {
+        "tp": 20,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "human/casual": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 10,
+        "fn": 0
+      },
+      "human/email": {
+        "tp": 0,
+        "fp": 1,
+        "tn": 9,
+        "fn": 0
+      },
+      "human/forum": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 10,
+        "fn": 0
+      },
+      "human/human": {
+        "tp": 0,
+        "fp": 28,
+        "tn": 2,
+        "fn": 0
+      }
+    }
+  },
+  "feature_importances": {
+    "transformer_prob": 156,
+    "neural_prob": 15,
+    "heuristic_score": 14,
+    "llm_pattern_score": 0,
+    "transitional_entropy": 26,
+    "burstiness": 56,
+    "contraction_score": 17,
+    "zipf_deviation": 1,
+    "vocab_richness": 35,
+    "binoculars_ai_prob": 21,
+    "fast_detectgpt_ai_prob": 69,
+    "lm_perplexity": 145,
+    "coherence_mean": 25,
+    "coherence_var": 10
+  },
+  "gate_passed": false
+}

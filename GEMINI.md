@@ -15,25 +15,29 @@
 
 ## 3. Architecture & Verification Workflow
 - Backend: FastAPI async endpoints under `slop/backend/app/api/v1/`.
-- Frontend: React 18 + Vite under `slop/frontend/src/` adhering to the cyber-slate palette (`#07090e`, `#f43f5e`, `#10b981`).
+- Frontend: React 18 + Vite under `slop/frontend/src/`.
 - Database: Async SQLAlchemy 2.0 sessions (`sqlite+aiosqlite`). Always commit sessions inside context managers.
 - Ponytail Full Mode: Intentional simplifications marked with `# ponytail:` comments. Standard library and native features prioritized over bloat.
 - Mandatory CLI verification: Execute tests via CLI and check exit codes before completing any step.
 
-## 4. Frontend Performance & Accessibility Directives
-- Landmark & Hierarchy: Every page view MUST mount a `<main>` landmark with strictly sequential heading levels (`<h1>` -> `<h2>` -> `<h3>`).
-- Compositor-Only Animations: Animations MUST animate only GPU-composited properties (`transform`, `opacity`). Never animate `top`, `left`, `margin`, `color`, or `box-shadow`.
-- Zero-Shift Font Loading: Web fonts MUST use preconnected stylesheets with `font-display: swap` without print-media hacks that trigger CLS.
-- On-Demand Observability: Heavy tracking/monitoring SDKs (Sentry, PostHog) MUST be dynamically loaded only when credentials exist and user consent is confirmed.
+## 4. Frontend Dual-Theme & Accessibility Directives
+- Semantic Token System: All components MUST use CSS theme variables (`--bg-page`, `--bg-card`, `--text-main`, `--border-card`) instead of hardcoded dark hex codes.
+  * Cyber Slate (Dark): Background `#07090e`, Cards `#0d121c`, Borders `#1e293b`, Text `#f8fafc`.
+  * Studio Clean (Light): Background `#f8fafc`, Cards `#ffffff`, Borders `#e2e8f0`, Text `#0f172a`.
+  * Both modes must strictly maintain WCAG AA contrast (no white text on light backgrounds or dark boxes in light mode).
+- Sticky Dual-Pane Invariant: The detector layout (`.detector-grid`) must use `align-items: start !important`. Ancestor containers MUST NOT use `overflow: hidden` or `overflow-x: clip`, which disable sticky scrolling.
+- Compositor-Only Animations: Animate exclusively GPU-composited properties (`transform`, `opacity`). Never animate layout dimensions or colors.
 
 ## 5. AI Agent & Pipeline Security Directives
 - Least-Privilege Agent Guardrails: AI Agents MUST NEVER read, edit, or expose `.env`, `.pem`, `.key`, or RSA private keys in `keys/`. Never write files outside the workspace root.
-- Input Normalization & Sanitization: Every incoming text analysis MUST execute Unicode NFKC normalization and strip invisible/zero-width formatting characters (`\u200b`, `\u200c`, `\ufeff`, `\u2060`) before stylometric or neural processing.
+- Input Normalization & Sanitization: Every incoming text analysis MUST execute Unicode NFKC normalization and strip invisible/zero-width formatting characters (`\u200b`, `\u200c`, `\ufeff`, `\u2060`) before processing.
 - Injection Awareness & Non-Execution: Pipelines MUST detect and flag prompt injection or jailbreak payloads in metadata without executing or propagating them to downstream agents or tools.
-- Multi-Tenant & Session Hygiene: User session contexts must be scoped (`user_id:key`) and explicitly wiped on session termination to prevent data leakage.
 
-## 6. Multi-Modal Frontier Calibration & Spectral Visualization Directives
-- Frontier LLM Calibration: Text analysis pipelines MUST calibrate neural outputs against 2025/2026 frontier LLM signatures (GPT-4o, Claude 3.5 Sonnet, Gemini 1.5/2.0, DeepSeek-R1) using Binoculars-style cross-ratio variance and lexical entropy. Old classifier suppression must never produce a false negative on high-evidence synthetic text.
-- PRNU Sensor Noise Mapping: Image detection endpoints MUST generate a normalized Photo-Response Non-Uniformity (PRNU) sensor residual heatmap alongside GradCAM and ELA to distinguish real camera sensor silicon imperfections from synthetic diffusion latents.
-- HUD Performance: All interactive forensic visualizers (radar gauges, token highlights, frequency spectrograms) must animate exclusively via GPU-composited properties (`transform`, `opacity`) with zero cumulative layout shift (CLS).
-- Neural-First Consensus Authority: In multi-modal ensembles combining deep neural networks (Swin Transformer, RoBERTa) with forensic heuristics (Bayer CFA, FFT, ELA, orthogonal edge ratios), the deep neural model MUST hold primary authority (80%+). Heuristic classifiers for diagrams or authentic camera photos must NEVER override or clamp an image if the neural vision transformer detects synthetic generative features with confidence (>= 0.70). Heuristics serve exclusively as corroborating evidence or as authentic confirmation when neural AI probability is below 0.35.
+## 6. Multi-Modal Calibration & Forensic Dual-Track Directives
+- Text vs. Code Dual-Track: Incoming text must undergo code syntax parsing.
+  * If syntax exhibits code structures (Python, JS, C++), route to the **Code Forensics Track**: evaluate identifier entropy, formatting regularity, and comment density. Bypasses natural prose Zipf's law and burstiness penalties.
+  * Categorize code explicitly as **"Manual Coded (Human / Competitive)"** (< 0.20 AI) or **"Vibe Coded (AI / Assistant Generated)"** (> 0.70 AI).
+- Neural-First Consensus Authority: In multi-modal ensembles (Swin Transformer, RoBERTa, Heuristics), the deep neural model holds primary authority (80%+).
+  * Heuristic classifiers for diagrams or authentic camera photos must NEVER override or clamp an image if the neural vision model detects synthetic generative features with confidence (`>= 0.55`).
+  * Diagram suppression is strictly limited to low-evidence neural ranges (`< 0.40`).
+- PRNU Sensor Noise Mapping: Image detection endpoints MUST generate a normalized Photo-Response Non-Uniformity (PRNU) sensor residual heatmap alongside GradCAM and ELA to distinguish real camera silicon imperfections from synthetic diffusion latents.
