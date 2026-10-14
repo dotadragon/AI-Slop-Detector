@@ -8,9 +8,10 @@ on:
       - 'slop/backend/**'
       - 'Model/fusion/**'
       - 'golden_set/**'
-      - 'heldout_set/**'
-      - 'scripts/eval_image_regression_gate.py'
-      - '.github/workflows/ci.yml'
+      - 'scripts/**'
+      - '.github/**'
+      - 'GEMINI.md'
+      - 'slop/ANTIGRAVITY_RULES.md'
   pull_request:
     branches: [ main ]
     paths:
@@ -18,9 +19,10 @@ on:
       - 'slop/backend/**'
       - 'Model/fusion/**'
       - 'golden_set/**'
-      - 'heldout_set/**'
-      - 'scripts/eval_image_regression_gate.py'
-      - '.github/workflows/ci.yml'
+      - 'scripts/**'
+      - '.github/**'
+      - 'GEMINI.md'
+      - 'slop/ANTIGRAVITY_RULES.md'
 
 jobs:
   backend-checks:
@@ -30,6 +32,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -43,6 +47,14 @@ jobs:
           pip install -r slop/backend/requirements-core.txt
           pip install pytest pytest-asyncio pytest-cov
 
+      - name: Verify Agent Integrity (Fail-Closed)
+        run: |
+          python scripts/verify_agent_integrity.py
+
+      - name: Run Operational Rules Linter
+        run: |
+          python scripts/lint_rules.py
+
       - name: Verify Environment & Security Directives
         run: |
           python scripts/verify_env.py
@@ -51,12 +63,11 @@ jobs:
         run: |
           pytest slop/backend/tests -v --ignore=slop/backend/tests/test_image_regression_gate.py
 
-      - name: Automated Image Verdict Regression Gate (Golden + Heldout Sets)
+      - name: Automated Image Verdict Regression Gate
         env:
           MAX_ALLOWED_IMAGE_FLIPS: "0"
           MAX_ALLOWED_IMAGE_REGRESSIONS: "0"
         run: |
-          # Fails the build if more than N verdicts flip versus the committed baseline
           python scripts/eval_image_regression_gate.py --max-flips 0 --max-regressions 0 --output-json image_regression_report.json
 
       - name: Upload Regression Gate Artifacts

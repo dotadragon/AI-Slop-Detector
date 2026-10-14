@@ -1,0 +1,17 @@
+# CODEOWNERS — Protected Evaluation & Forensic Assets
+# Fail-closed human ownership over sealed artifacts.
+# Agents are strictly prohibited from modifying these paths.
+
+.github/                                 @karthik
+scripts/verify_agent_integrity.py        @karthik
+scripts/lint_rules.py                    @karthik
+slop/ANTIGRAVITY_RULES.md                @karthik
+GEMINI.md                                @karthik
+heldout_manifest.json                    @karthik
+heldout_manifest.sha256                  @karthik
+validation_status.json                   @karthik
+reliability.json                         @karthik
+heldout_set/                             @karthik
+scripts/eval_rigorous.py                 @karthik
+calibrators.json                         @karthik
+Model/fusion/                            @karthik

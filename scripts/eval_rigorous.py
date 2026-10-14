@@ -37,8 +37,10 @@ Output: heldout_report.json + HELDOUT_REPORT.md
 """
 
 import argparse
+import hashlib
 import json
 import math
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -51,10 +53,55 @@ from app.ml.text_detector import analyze_text          # noqa: E402
 from app.ml.image_detector import analyze_image        # noqa: E402
 from app.ml.video_detector import analyze_video        # noqa: E402
 
-HELDOUT_DIR = ROOT / "heldout_set"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
-
 CALIBRATION_PATH = ROOT / "calibrators.json"
+
+
+def get_heldout_dir() -> Path:
+    env_path = os.environ.get("SLOP_HELDOUT_DIR")
+    if not env_path:
+        raise RuntimeError(
+            "SLOP_HELDOUT_DIR environment variable is not set. "
+            "Please point SLOP_HELDOUT_DIR to the sealed heldout dataset (e.g. C:\\Users\\karth\\Desktop\\AISlop_heldout_set)."
+        )
+    p = Path(env_path)
+    if not p.exists():
+        raise RuntimeError(f"SLOP_HELDOUT_DIR directory does not exist: {p}")
+    return p
+
+
+def verify_manifest(heldout_dir: Path, split: str) -> None:
+    manifest_path = ROOT / "heldout_manifest.json"
+    if not manifest_path.exists():
+        manifest_path = heldout_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise RuntimeError(f"Sealed manifest heldout_manifest.json not found in {ROOT} or {heldout_dir}")
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        records = json.load(f)
+
+    split_records = [r for r in records if r["split"] == split]
+    if not split_records:
+        raise RuntimeError(f"No records found in manifest for split '{split}'")
+
+    print(f"[integrity] Verifying SHA-256 for all {len(split_records)} samples in '{split}' split against sealed manifest...")
+    for r in split_records:
+        target = heldout_dir / r["path"]
+        if not target.exists():
+            raise RuntimeError(f"Sealed file missing from {split} partition: {target}")
+        h = hashlib.sha256()
+        with open(target, "rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        actual = h.hexdigest()
+        if actual != r["sha256"]:
+            raise RuntimeError(
+                f"FATAL: SHA-256 mismatch for {target}!\n"
+                f"Expected: {r['sha256']}\n"
+                f"Got:      {actual}\n"
+                f"Evaluation aborted — dataset tampering or corruption detected."
+            )
+    print(f"[integrity] Integrity OK: All {len(split_records)} files match sealed manifest byte-for-byte.")
 
 
 # ============================================================================
@@ -202,14 +249,15 @@ def choose_calibrator(cal_scores: list[float], cal_labels: list[int], eval_score
 # Stratified corpus discovery
 # ============================================================================
 
-def discover_stratified(modality: str, min_per_class: int, calibration_fraction: float) -> tuple[list, list]:
+def discover_stratified(modality: str, min_per_class: int, calibration_fraction: float, split: str = "dev") -> tuple[list, list]:
     """
     Returns (eval_items, calibration_items) where each item is
-    (path_or_text, label_int, subtype). Split is stratified per (class, subtype)
+    (path_or_text, label_int, subtype, split_cal, name). Split is stratified per (class, subtype)
     so both splits see every generator type.
     """
-    base = HELDOUT_DIR / modality
-    items: list[tuple[str, int, str]] = []
+    heldout_dir = get_heldout_dir()
+    base = heldout_dir / split / modality
+    items: list[tuple[str, int, str, bool, str]] = []
 
     for truth, class_dir_name in ((1, "ai"), (0, "human")):
         class_dir = base / class_dir_name
@@ -319,17 +367,51 @@ def summarize(results: list[dict], modality: str) -> dict:
                         / ((tp / (tp + fp) if tp + fp else 0) + (tp / (tp + fn) if tp + fn else 0)) * 100, 2)
                    if tp and (tp + fp) and (tp + fn) else None,
         "ece": expected_calibration_error(scores, labels),
+        "ece_note": "UNRELIABLE - pending Step 1 positive-class ECE fix",
         "reliability_diagram": reliability_diagram(scores, labels),
         "by_subtype": {k: v for k, v in sorted(subtypes.items())},
+        "per_sample": [
+            {
+                "name": r["name"],
+                "subtype": r["subtype"],
+                "truth": r["truth"],
+                "score": r["score"],
+                "verdict": "AI" if (r["score"] is not None and r["score"] >= 0.50) else "HUMAN"
+            }
+            for r in valid
+        ],
         "sample_errors": [{"name": r["name"], "subtype": r["subtype"], "truth": r["truth"], "score": r["score"], "error": r.get("error")} for r in errors[:10]],
     }
+
+
+def compare_paired_samples(current_results: list[dict], baseline_results: list[dict]) -> list[dict]:
+    baseline_map = {r["name"]: r for r in baseline_results}
+    flips = []
+    for cur in current_results:
+        name = cur["name"]
+        if name in baseline_map:
+            base = baseline_map[name]
+            base_verdict = base.get("verdict") or ("AI" if base.get("score") is not None and base["score"] >= 0.50 else "HUMAN")
+            cur_verdict = cur.get("verdict") or ("AI" if cur.get("score") is not None and cur["score"] >= 0.50 else "HUMAN")
+            if base_verdict != cur_verdict:
+                flips.append({
+                    "name": name,
+                    "subtype": cur.get("subtype"),
+                    "truth": cur.get("truth"),
+                    "base_score": base.get("score"),
+                    "base_verdict": base_verdict,
+                    "cur_score": cur.get("score"),
+                    "cur_verdict": cur_verdict,
+                    "is_regression": (cur.get("truth") == 1 and cur_verdict == "HUMAN") or (cur.get("truth") == 0 and cur_verdict == "AI"),
+                })
+    return flips
 
 
 def render_markdown(report: dict) -> str:
     lines = [
         "# SLOP Held-Out Evaluation Report",
         "",
-        f"_Generated by `eval_rigorous.py` over real held-out data in `heldout_set/`. "
+        f"_Generated by `eval_rigorous.py` over sealed held-out data. "
         f"No thresholds were tuned on this data._",
         "",
     ]
@@ -343,7 +425,7 @@ def render_markdown(report: dict) -> str:
             "",
             f"- **Accuracy: {m['accuracy_pct']}%** (95% Wilson CI: **{lo}%–{hi}%**, n={m['total']})",
             f"- Precision {m['precision_pct']}% | Recall {m['recall_pct']}% | F1 {m['f1_pct']}%",
-            f"- **ECE (calibration error): {m['ece']}** — lower is better; >0.10 means scores are not trustworthy as probabilities",
+            f"- **ECE (calibration error): {m['ece']}** (NOTE: {m.get('ece_note', 'UNRELIABLE')})",
             f"- Errors during inference: {m['errors']}",
             "",
             "### Confusion matrix",
@@ -390,11 +472,29 @@ def render_markdown(report: dict) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="SLOP rigorous held-out evaluation + calibration")
+    parser.add_argument("--split", type=str, default="dev", choices=["dev", "final"], help="Split partition to evaluate ('dev' for agent/dev runs, 'final' for human-only sealed eval)")
+    parser.add_argument("--baseline", type=str, default=None, help="Path to previous heldout_report.json for paired sample comparison")
     parser.add_argument("--min-per-class", type=int, default=50, help="Warn if a (class, subtype) has fewer samples")
     parser.add_argument("--calibration-fraction", type=float, default=0.3, help="Fraction reserved for calibration fitting")
     parser.add_argument("--modalities", type=str, default="text,image,video", help="Comma-separated modalities to evaluate")
     parser.add_argument("--apply-calibration", action="store_true", help="Persist fitted calibrators to calibrators.json")
     args = parser.parse_args()
+
+    heldout_dir = get_heldout_dir()
+    verify_manifest(heldout_dir, args.split)
+
+    if args.split == "final":
+        print("\n[WARNING] Evaluating on 'final' human-only sealed partition. Agent-authored runs must use '--split dev'.\n")
+
+    baseline_data = None
+    if args.baseline:
+        base_p = Path(args.baseline)
+        if base_p.exists():
+            with open(base_p, "r", encoding="utf-8") as f:
+                baseline_data = json.load(f)
+            print(f"[paired-eval] Loaded baseline for comparison from: {base_p}")
+        else:
+            print(f"[warn] Baseline file not found: {base_p}")
 
     runners = {"text": run_text, "image": run_image, "video": run_video}
 
@@ -402,19 +502,32 @@ def main():
     calibrators_out: dict = {}
 
     for mod in [m.strip() for m in args.modalities.split(",") if m.strip()]:
-        if not (HELDOUT_DIR / mod).exists():
-            print(f"[skip] heldout_set/{mod} does not exist — see module docstring for sourcing instructions")
+        mod_dir = heldout_dir / args.split / mod
+        if not mod_dir.exists():
+            print(f"[skip] {args.split}/{mod} does not exist in heldout dataset")
             continue
-        print(f"\n=== Evaluating {mod} on held-out data ===")
-        eval_items, cal_items = discover_stratified(mod, args.min_per_class, args.calibration_fraction)
+        print(f"\n=== Evaluating {mod} on held-out data ({args.split} partition) ===")
+        eval_items, cal_items = discover_stratified(mod, args.min_per_class, args.calibration_fraction, split=args.split)
         print(f"  eval split: {len(eval_items)} items | calibration split: {len(cal_items)} items")
 
         results = runners[mod](eval_items)
         summary = summarize(results, mod)
+
+        if baseline_data and mod in baseline_data and "per_sample" in baseline_data[mod]:
+            flips = compare_paired_samples(summary["per_sample"], baseline_data[mod]["per_sample"])
+            summary["flips_versus_baseline"] = flips
+            if flips:
+                print(f"\n  [PAIRED COMPARISON] {len(flips)} sample verdicts flipped versus baseline:")
+                for fl in flips:
+                    status = "REGRESSION" if fl["is_regression"] else "IMPROVEMENT/CHANGE"
+                    print(f"    - [{status}] {fl['name']} ({fl['subtype']}): {fl['base_verdict']} ({fl['base_score']}) -> {fl['cur_verdict']} ({fl['cur_score']})")
+            else:
+                print("  [PAIRED COMPARISON] 0 sample verdict flips versus baseline.")
+
         report[mod] = summary
 
         print(f"  Accuracy: {summary['accuracy_pct']}%  Wilson 95% CI: {summary['accuracy_wilson_95']}")
-        print(f"  ECE: {summary['ece']}")
+        print(f"  ECE: {summary['ece']} [UNRELIABLE - pending Step 1 positive-class ECE fix]")
 
         # Phase 6: fit calibrator on calibration split, measure before/after ECE on eval split
         if cal_items:
