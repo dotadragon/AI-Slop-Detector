@@ -130,79 +130,112 @@ export function VideoUpload({ onFile, onStreamResult, loading }: VideoUploadProp
   // Active streaming state: show progress UI
   if (stream.active) {
     return (
-      <section className="input-panel video-progress-panel">
-        <div className="video-progress-header">
-          <Clapperboard size={24} />
-          <span>{stream.status}</span>
-        </div>
+      <div className="video-pane" style={{ maxHeight: '68vh', overflow: 'auto' }}>
+        <section className="input-panel video-progress-panel" style={{ padding: '12px 14px', margin: '0' }}>
+          <div className="video-progress-header" style={{ marginBottom: '12px' }}>
+            <Clapperboard size={24} />
+            <span>{stream.status}</span>
+          </div>
 
-        {/* Circular progress with native SVG */}
-        <div className="video-progress-ring-container">
-          <svg className="video-progress-ring" viewBox="0 0 120 120">
-            <circle className="video-progress-track" cx="60" cy="60" r="52" />
-            <circle
-              className="video-progress-fill"
-              cx="60"
-              cy="60"
-              r="52"
-              strokeDasharray={`${2 * Math.PI * 52}`}
-              strokeDashoffset={`${2 * Math.PI * 52 * (1 - stream.progress / 100)}`}
+          {/* Circular progress with native SVG */}
+          <div className="video-progress-ring-container" style={{ margin: '12px auto' }}>
+            <svg className="video-progress-ring" viewBox="0 0 120 120">
+              <circle className="video-progress-track" cx="60" cy="60" r="52" />
+              <circle
+                className="video-progress-fill"
+                cx="60"
+                cy="60"
+                r="52"
+                strokeDasharray={`${2 * Math.PI * 52}`}
+                strokeDashoffset={`${2 * Math.PI * 52 * (1 - stream.progress / 100)}`}
+              />
+            </svg>
+            <div className="video-progress-percent">
+              <strong>{stream.progress}%</strong>
+              <span>{stream.currentFrame}/{stream.totalFrames}</span>
+            </div>
+          </div>
+
+          {/* Current frame thumbnail + score */}
+          {stream.lastThumbnail && (
+            <div className="video-current-frame" style={{ width: '140px', height: '84px', margin: '12px auto', position: 'relative' }}>
+              <img
+                src={`data:image/jpeg;base64,${stream.lastThumbnail}`}
+                alt={`Frame ${stream.currentFrame}`}
+                style={{ width: '140px', height: '84px', objectFit: 'cover', borderRadius: '8px' }}
+              />
+              {stream.lastFrameScore !== null && (
+                <div className="video-frame-score-badge" data-level={
+                  stream.lastFrameScore >= 0.72 ? "high" :
+                  stream.lastFrameScore >= 0.42 ? "mid" : "low"
+                }>
+                  {Math.round(stream.lastFrameScore * 100)}%
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Frame progress bar */}
+          <div className="video-progress-bar-track" style={{ margin: '12px 0' }}>
+            <div
+              className="video-progress-bar-fill"
+              style={{ width: `${stream.progress}%` }}
             />
-          </svg>
-          <div className="video-progress-percent">
-            <strong>{stream.progress}%</strong>
-            <span>{stream.currentFrame}/{stream.totalFrames}</span>
           </div>
-        </div>
 
-        {/* Current frame thumbnail + score */}
-        {stream.lastThumbnail && (
-          <div className="video-current-frame aspect-video max-h-[40dvh]">
-            <img
-              src={`data:image/jpeg;base64,${stream.lastThumbnail}`}
-              alt={`Frame ${stream.currentFrame}`}
-              className="w-full h-full object-contain"
-            />
-            {stream.lastFrameScore !== null && (
-              <div className="video-frame-score-badge" data-level={
-                stream.lastFrameScore >= 0.72 ? "high" :
-                stream.lastFrameScore >= 0.42 ? "mid" : "low"
-              }>
-                {Math.round(stream.lastFrameScore * 100)}%
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Frame progress bar */}
-        <div className="video-progress-bar-track">
-          <div
-            className="video-progress-bar-fill"
-            style={{ width: `${stream.progress}%` }}
-          />
-        </div>
-
-        {stream.error && (
-          <div className="video-error">
-            <AlertTriangle size={16} />
-            {stream.error}
-          </div>
-        )}
-      </section>
+          {stream.error && (
+            <div className="video-error" style={{ margin: '12px 0' }}>
+              <AlertTriangle size={16} />
+              {stream.error}
+            </div>
+          )}
+        </section>
+      </div>
     );
   }
 
   // Completed state
   if (stream.progress === 100 && !stream.active) {
     return (
+      <div className="video-pane" style={{ maxHeight: '68vh', overflow: 'auto' }}>
+        <section
+          className="input-panel video-complete-panel cursor-pointer"
+          style={{ padding: '12px 14px', margin: '0' }}
+          onClick={triggerSelect}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          role="region"
+          aria-label="Upload replacement video file"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*,.mp4,.mkv,.mov,.avi,.webm,.flv"
+            style={{ display: "none" }}
+            onChange={handleInputChange}
+            aria-label="Upload new video file"
+          />
+          <CheckCircle size={34} className="video-complete-icon" aria-hidden="true" />
+          <strong>Analysis complete</strong>
+          <span>Drop another video or click to scan again</span>
+        </section>
+      </div>
+    );
+  }
+
+  // Default dropzone
+  return (
+    <div className="video-pane" style={{ maxHeight: '68vh', overflow: 'auto' }}>
       <section
-        className="input-panel video-complete-panel cursor-pointer"
+        className={`dropzone ${isDragActive ? "active" : ""}`}
+        style={{ padding: '14px' }}
         onClick={triggerSelect}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         role="region"
-        aria-label="Upload replacement video file"
+        aria-label="Video file upload zone"
       >
         <input
           ref={fileInputRef}
@@ -210,39 +243,14 @@ export function VideoUpload({ onFile, onStreamResult, loading }: VideoUploadProp
           accept="video/*,.mp4,.mkv,.mov,.avi,.webm,.flv"
           style={{ display: "none" }}
           onChange={handleInputChange}
-          aria-label="Upload new video file"
+          disabled={loading}
+          aria-label="Upload video file for frame-by-frame AI detection"
         />
-        <CheckCircle size={34} className="video-complete-icon" aria-hidden="true" />
-        <strong>Analysis complete</strong>
-        <span>Drop another video or click to scan again</span>
+        <Clapperboard size={34} aria-hidden="true" />
+        <strong>{loading ? "Extracting frames..." : "Drop video sample or click to browse"}</strong>
+        <span>MP4, MKV, MOV, AVI, WEBM, FLV</span>
+        <span className="dropzone-hint">Real-time frame-by-frame analysis with Farnebäck motion stability</span>
       </section>
-    );
-  }
-
-  // Default dropzone
-  return (
-    <section
-      className={`dropzone ${isDragActive ? "active" : ""}`}
-      onClick={triggerSelect}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      role="region"
-      aria-label="Video file upload zone"
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="video/*,.mp4,.mkv,.mov,.avi,.webm,.flv"
-        style={{ display: "none" }}
-        onChange={handleInputChange}
-        disabled={loading}
-        aria-label="Upload video file for frame-by-frame AI detection"
-      />
-      <Clapperboard size={34} aria-hidden="true" />
-      <strong>{loading ? "Extracting frames..." : "Drop video sample or click to browse"}</strong>
-      <span>MP4, MKV, MOV, AVI, WEBM, FLV</span>
-      <span className="dropzone-hint">Real-time frame-by-frame analysis with Farnebäck motion stability</span>
-    </section>
+    </div>
   );
 }

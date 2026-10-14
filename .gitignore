@@ -26,3 +26,21 @@ _backup/
 .claude/
 .venv/
 venv/
+heldout_set/
+heldout_set_backup.zip
+
+# Cache, models, scratch & test manifests
+**/hf_cache/
+hf_cache/
+.freebuff/
+_archive/
+artifacts/
+baseline_*.json
+heldout_report.json
+heldout_manifest.json
+heldout_manifest.sha256
+Model/fusion/_archive/
+Model/fusion/*_v2.pkl
+Model/fusion/*_calibrator.pkl
+Model/fusion/*_gbdt.pkl
+Model/fusion/*_pre_raid.pkl

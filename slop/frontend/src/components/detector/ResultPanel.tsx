@@ -329,7 +329,7 @@ function DocumentSectionsHeatmap({ sections }: { sections?: DetectionResult["sec
 
       <div style={{ display: "flex", height: "8px", borderRadius: "4px", overflow: "hidden", marginBottom: "14px", background: "var(--border-card)", gap: "2px" }}>
         {sections.map((sec) => {
-          const color = sec.score > 0.70 ? "#f43f5e" : sec.score >= 0.35 ? "#f59e0b" : "#10b981";
+          const color = sec.score > 0.70 ? "#f43f5e" : sec.score > 0.55 ? "#f59e0b" : "#10b981";
           return (
             <div
               key={sec.index}
@@ -346,8 +346,8 @@ function DocumentSectionsHeatmap({ sections }: { sections?: DetectionResult["sec
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "220px", overflowY: "auto" }}>
         {sections.map((sec) => {
-          const badgeColor = sec.score > 0.70 ? "#f43f5e" : sec.score >= 0.35 ? "#f59e0b" : "#10b981";
-          const label = sec.score > 0.70 ? "AI Generated" : sec.score >= 0.35 ? "Mixed" : "Human";
+          const badgeColor = sec.score > 0.70 ? "#f43f5e" : sec.score > 0.55 ? "#f59e0b" : "#10b981";
+          const label = sec.score > 0.70 ? "Likely AI" : sec.score > 0.55 ? "Possible AI" : "Likely Human";
           return (
             <div
               key={sec.index}
@@ -411,7 +411,7 @@ function DossierExportAction({ jobId }: { jobId?: string }) {
           padding: "10px 16px",
           background: "rgba(0, 229, 255, 0.08)",
           border: "1px solid rgba(0, 229, 255, 0.3)",
-          color: "#00e5ff",
+          color: "var(--accent)",
           borderRadius: "6px",
           fontWeight: 700,
           fontSize: "12px",
@@ -428,21 +428,37 @@ function DossierExportAction({ jobId }: { jobId?: string }) {
   );
 }
 
+function AccuracyDisclaimer({ modality }: { modality?: string }) {
+  const stats: Record<string, string> = {
+    text: "Model accuracy: ~34% AI recall (held-out, n=66)",
+    image: "Model accuracy: 75.7% (held-out, n=52)",
+    video: "Model accuracy: 50% (limited data)",
+    audio: "Under revalidation — disabled",
+    document: "Experimental (n=24 containers)",
+  };
+  const msg = stats[modality ?? ""] ?? "Accuracy stats unavailable";
+  return (
+    <p style={{fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem"}}>
+      {msg}
+    </p>
+  );
+}
+
 function ConsolidatedVerdictPill({ score }: { score: number }) {
   let label: string;
   let tone: "ai" | "authentic" | "uncertain";
   let Icon = AlertTriangle;
 
   if (score > 0.70) {
-    label = "AI Detected";
+    label = "Likely AI-Generated";
     tone = "ai";
     Icon = AlertTriangle;
   } else if (score < 0.35) {
-    label = "Authentic";
+    label = "Likely Human-Authored";
     tone = "authentic";
     Icon = ShieldCheck;
   } else {
-    label = "Uncertain";
+    label = "Uncertain — Insufficient Evidence";
     tone = "uncertain";
     Icon = Scale;
   }
@@ -510,10 +526,12 @@ export function ResultPanel({
   result,
   loading,
   error,
+  modality,
 }: {
   result?: DetectionResult;
   loading: boolean;
   error?: string;
+  modality?: string;
 }) {
   const resultContainerRef = useRef<HTMLDivElement>(null);
 
@@ -608,7 +626,8 @@ export function ResultPanel({
 
         {result && !loading && (
           <div key="result" ref={resultContainerRef} className="result-container-flow">
-            <ScoreCard score={result.overall_score} />
+            <ScoreCard score={result.overall_score} confidence_range={result.confidence_range} confidence_band={result.confidence_band} />
+            <AccuracyDisclaimer modality={modality} />
             <ConsolidatedVerdictPill score={result.overall_score} />
             <CodeVerdictBadge result={result} />
             <MixedAuthorshipBadge result={result} />

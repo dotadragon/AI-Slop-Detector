@@ -89,7 +89,7 @@ export function VideoTimeline({ result }: { result?: DetectionResult }) {
           >
             <ChevronLeft size={14} />
           </button>
-          <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace", minWidth: "48px", textAlign: "center" }}>
+          <span style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "monospace", minWidth: "48px", textAlign: "center" }}>
             {selectedIdx + 1} / {frames.length}
           </span>
           <button
@@ -193,24 +193,24 @@ export function VideoTimeline({ result }: { result?: DetectionResult }) {
           }}
         >
           <div>
-            <span style={{ color: "#64748b", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Frame Index</span>
-            <strong style={{ color: "#f8fafc", fontFamily: "monospace" }}>#{activeIdx + 1} ({activeFrame.timestamp}s)</strong>
+            <span style={{ color: "var(--text-muted)", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Frame Index</span>
+            <strong style={{ color: "var(--text-main)", fontFamily: "monospace" }}>#{activeIdx + 1} ({activeFrame.timestamp}s)</strong>
           </div>
           <div>
-            <span style={{ color: "#64748b", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Synthetic Score</span>
+            <span style={{ color: "var(--text-muted)", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Synthetic Score</span>
             <strong style={{ color: scoreColor(activeFrame.score) }}>
               {Math.round(activeFrame.score * 100)}% {activeFrame.score >= 0.70 ? "AI" : activeFrame.score >= 0.40 ? "Mixed" : "Real"}
             </strong>
           </div>
           <div>
-            <span style={{ color: "#64748b", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Biometric Face</span>
-            <strong style={{ color: activeFrame.has_face ? "#38bdf8" : "#94a3b8" }}>
+            <span style={{ color: "var(--text-muted)", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Biometric Face</span>
+            <strong style={{ color: activeFrame.has_face ? "var(--accent)" : "var(--text-muted)" }}>
               {activeFrame.has_face ? `Face Detected (${activeFrame.face_count || 1})` : "None"}
             </strong>
           </div>
           {temporalJitter !== undefined && (
             <div>
-              <span style={{ color: "#64748b", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Temporal Jitter</span>
+              <span style={{ color: "var(--text-muted)", display: "block", fontSize: "10px", textTransform: "uppercase" }}>Temporal Jitter</span>
               <strong style={{ color: temporalJitter > 0.08 ? "#f59e0b" : "#10b981", fontFamily: "monospace" }}>
                 {temporalJitter.toFixed(4)}
               </strong>
@@ -220,7 +220,7 @@ export function VideoTimeline({ result }: { result?: DetectionResult }) {
       )}
 
       {/* Legend */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", fontSize: "11px", color: "#64748b" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>
         <div style={{ display: "flex", gap: "12px" }}>
           {frames.length > 1 ? (
             <>

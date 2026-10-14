@@ -90,14 +90,28 @@ export function ImageUpload({ onFile, loading, result }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <div className="preview-image-wrapper aspect-square max-h-[60dvh]">
-            <div className="preview-image-inner">
-              <img src={previewUrl} alt="Uploaded sample for forensic scan" className="object-contain w-full h-full" />
+          <div className="preview-image-wrapper">
+            <div style={{ display: 'grid', placeItems: 'center', padding: '12px 16px' }}>
+              <div className="preview-image-inner" style={{ position: 'relative', display: 'inline-block' }}>
+                <img
+                  src={previewUrl}
+                  alt="preview"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '56vh',
+                    width: 'auto',
+                    height: 'auto',
+                    objectFit: 'contain',
+                    borderRadius: '12px',
+                    border: '1px solid var(--panel-border)'
+                  }}
+                />
 
-              {/* Green Bounding Box Overlay for SynthID / Digital Signature */}
-              {boundingBox && signature?.detected && showReticle && (
-                <SignatureBoundingBox boundingBox={boundingBox} signature={signature} />
-              )}
+                {/* Green Bounding Box Overlay for SynthID / Digital Signature */}
+                {boundingBox && signature?.detected && showReticle && (
+                  <SignatureBoundingBox boundingBox={boundingBox} signature={signature} />
+                )}
+              </div>
             </div>
           </div>
 

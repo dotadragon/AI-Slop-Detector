@@ -32,7 +32,9 @@ html.lenis, html.lenis body { height: auto; }
   --text: var(--text-main);
   --text2: var(--text-muted);
   --text3: #64748b;
+  --fg3: var(--text3);
   --accent: #ff7700;
+  --accent-contrast: #080a0c;
   --green: #059669;
   --amber: #d97706;
   --red: #e11d48;
@@ -69,7 +71,9 @@ html.lenis, html.lenis body { height: auto; }
   --text: var(--text-main);
   --text2: var(--text-muted);
   --text3: #64748b;
+  --fg3: var(--text3);
   --accent: #ff7700;
+  --accent-contrast: #080a0c;
   --green: #059669;
   --amber: #d97706;
   --red: #e11d48;
@@ -102,8 +106,10 @@ html.lenis, html.lenis body { height: auto; }
   --border-hi: rgba(255, 255, 255, 0.15);
   --text: var(--text-main);
   --text2: var(--text-muted);
-  --text3: #64748b;
+  --text3: #73829a;
+  --fg3: var(--text3);
   --accent: #ff7700;
+  --accent-contrast: #080a0c;
   --green: #10b981;
   --amber: #f59e0b;
   --red: #f43f5e;
@@ -266,16 +272,67 @@ button, input, textarea { font: inherit; }
 .btn:hover { border-color: var(--text3); }
 .btn-primary {
   background: var(--accent);
-  color: #080a0c;
+  color: var(--accent-contrast);
   border: 0;
   font-weight: 700;
 }
-.btn-primary:hover { background: #00bbd9; }
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, white);
+}
+.btn-secondary {
+  background: var(--bg2);
+  color: var(--text-main);
+  border-color: var(--border-card);
+}
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .btn-ghost { background: transparent; }
 .btn-ghost:hover { background: var(--bg2); }
 .btn-danger { background: var(--red); color: white; border: 0; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-sm { min-height: 32px; padding: 0 10px; font-size: 13px; }
+
+/* Minimal local utilities for detector components that use Tailwind-style names. */
+.text-red-400 { color: var(--red) !important; }
+.text-amber-400 { color: var(--amber) !important; }
+.text-emerald-400 { color: var(--green) !important; }
+.text-cyan-400 { color: var(--accent) !important; }
+.text-violet-400 { color: #a78bfa !important; }
+.text-gray-300,
+.text-slate-200 { color: var(--text-main) !important; }
+.text-gray-400 { color: var(--text-muted) !important; }
+.text-gray-500,
+.text-slate-500 { color: var(--text3) !important; }
+.text-sm { font-size: 13px !important; }
+.text-xs { font-size: 11px !important; }
+.font-semibold { font-weight: 700 !important; }
+.mb-2 { margin-bottom: 8px !important; }
+.mb-3 { margin-bottom: 12px !important; }
+.mt-1 { margin-top: 4px !important; }
+.mt-2 { margin-top: 8px !important; }
+.mt-4 { margin-top: 16px !important; }
+.w-full { width: 100% !important; }
+.max-w-xs { max-width: 320px !important; }
+.flex { display: flex !important; }
+.flex-col { flex-direction: column !important; }
+.items-center { align-items: center !important; }
+.justify-center { justify-content: center !important; }
+.p-8 { padding: 32px !important; }
+.rounded-lg { border-radius: 8px !important; }
+.min-h-\[220px\] { min-height: 220px !important; }
+.bg-slate-900\/50 {
+  background: color-mix(in srgb, var(--bg-page) 58%, var(--bg-card)) !important;
+}
+.cursor-pointer { cursor: pointer !important; }
+.animate-spin,
+.animate-spin-slow {
+  animation: spin 1s linear infinite;
+}
+.animate-spin-slow {
+  animation-duration: 1.8s;
+}
 
 /* ── Layout ──────────────────────────────────────────────────── */
 .landing, .workspace, .dashboard, .content-page {
@@ -443,7 +500,7 @@ button, input, textarea { font: inherit; }
   stroke: var(--border-card);
   stroke-width: 2;
   stroke-linecap: round;
-  transition: stroke 0.25s ease, opacity 0.25s ease;
+  transition: stroke-dashoffset 1000ms cubic-bezier(0.16, 1, 0.3, 1), stroke 0.25s ease, opacity 0.25s ease;
 }
 
 .conduit-branch-path.active {
@@ -2022,7 +2079,7 @@ button, input, textarea { font: inherit; }
   gap: 2px;
   border: 1px solid var(--border-card);
   border-radius: 6px;
-  background: var(--bg-card);
+  background: color-mix(in srgb, var(--bg-card) 88%, var(--bg-page));
 }
 .tabs button {
   min-width: 100px;
@@ -2040,7 +2097,11 @@ button, input, textarea { font: inherit; }
   transition: background 0.15s, color 0.15s;
 }
 .tabs button:hover { color: var(--text-main); }
-.tabs button.active { background: var(--bg-page); color: var(--accent); }
+.tabs button.active {
+  background: var(--bg-page);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
 
 .detector-grid {
   display: grid;
@@ -2347,6 +2408,10 @@ button, input, textarea { font: inherit; }
 .dropzone:hover { border-color: var(--text-main); }
 .dropzone strong { color: var(--text-main); font-size: 18px; }
 .dropzone.active { border-color: var(--accent); background: rgba(0,212,245,0.03); }
+.dark .dropzone.active,
+[data-theme="dark"] .dropzone.active {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-card));
+}
 .dropzone-icon { color: var(--accent); margin: 0 auto; }
 .dropzone-hint { font: 400 11px var(--mono); color: var(--text-muted); margin-top: 4px; }
 
@@ -2478,7 +2543,7 @@ button, input, textarea { font: inherit; }
 }
 .score-number {
   font: 800 32px var(--display);
-  color: var(--text);
+  color: var(--text-main);
   line-height: 1;
 }
 .score-unit {
@@ -2505,8 +2570,31 @@ button, input, textarea { font: inherit; }
   padding: 4px 10px;
   border-radius: 4px;
   border: 1px solid currentColor;
-  background: rgba(255,255,255,0.03);
+  background: color-mix(in srgb, currentColor 9%, var(--bg-card));
   width: fit-content;
+}
+.score-confidence-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.score-confidence-range-label {
+  color: var(--text-main);
+  font-weight: 700;
+}
+.score-confidence-range-value {
+  color: var(--text-main);
+  font-weight: 800;
+}
+.score-confidence-band {
+  width: fit-content;
+  border-bottom: 2px solid currentColor;
+  padding-bottom: 3px;
+  font: 700 13px var(--mono);
+  letter-spacing: 0.04em;
 }
 .score-subtitle {
   font-size: 13px;
@@ -3218,7 +3306,7 @@ button, input, textarea { font: inherit; }
   gap: 14px;
   padding: 18px;
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--bg-card);
   border: 1px solid var(--border-hi);
   position: relative;
   overflow: hidden;
@@ -3238,7 +3326,7 @@ button, input, textarea { font: inherit; }
 .scanning-tag {
   margin-left: auto;
   font: 700 10px var(--mono);
-  background: rgba(0,212,245,0.1);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
   padding: 2px 6px;
   border-radius: 3px;
@@ -3262,12 +3350,18 @@ button, input, textarea { font: inherit; }
   gap: 10px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.015);
-  border: 1px solid rgba(255,255,255,0.03);
+  background: color-mix(in srgb, var(--bg-page) 58%, var(--bg-card));
+  border: 1px solid var(--border-card);
   transition: all 0.2s ease;
 }
-.scanning-stage-row.current { background: rgba(0,212,245,0.04); border-color: rgba(0,212,245,0.2); }
-.scanning-stage-row.done { background: rgba(34,197,94,0.03); border-color: rgba(34,197,94,0.12); }
+.scanning-stage-row.current {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-card));
+}
+.scanning-stage-row.done {
+  background: color-mix(in srgb, var(--green) 8%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--green) 30%, var(--border-card));
+}
 .scanning-stage-indicator { margin-top: 2px; }
 .scanning-stage-info { flex: 1; }
 .scanning-stage-name { display: flex; align-items: center; gap: 6px; font: 600 12px var(--body); color: var(--text); }
@@ -3276,8 +3370,8 @@ button, input, textarea { font: inherit; }
 .scanning-stage-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .scanning-terminal {
   border-radius: 6px;
-  background: #040508;
-  border: 1px solid rgba(255,255,255,0.06);
+  background: #05070b;
+  border: 1px solid var(--border-card);
   font: 400 10px var(--mono);
   overflow: hidden;
 }
@@ -4418,7 +4512,7 @@ button, input, textarea { font: inherit; }
   border-radius: 8px;
   padding: 10px 16px;
   margin-bottom: 16px;
-  color: #fdba74;
+  color: var(--amber);
   font-size: 13px;
   font-family: var(--mono);
 }
@@ -4444,9 +4538,61 @@ button, input, textarea { font: inherit; }
 }
 
 .experimental-banner-desc {
-  color: #cbd5e1;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
+/* ── UX Refresh: Light mode palette refresh (higher contrast, cleaner) ── */
+[data-theme="light"], html.light, body.light {
+  --bg: #f7f9fc;
+  --panel: #ffffff;
+  --panel-border: #e5eaf2;
+  --text: #0b1324;
+  --text-muted: #5a6b82;
+  --accent: #2563eb;
+  --accent-contrast: #ffffff;
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --chip-bg: #eef4ff;
+  --chip-text: #1e40af;
+}
+body { background: var(--bg); color: var(--text); }
+.card, .panel { background: var(--panel); border: 1px solid var(--panel-border); }
+.btn-primary { background: var(--accent); color: var(--accent-contrast); }
 
+/* ── UX Refresh: Video pane compact scrollable wrapper ── */
+.video-pane {
+  max-height: 68vh;
+  overflow: auto;
+  padding: 12px 14px;
+}
+.video-pane img.video-thumb,
+.video-current-frame img {
+  width: 140px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+}
 
+/* ── UX Refresh: Slow connecting lines animation + scroll-timeline ── */
+:root { --flow-duration: 2400ms; }  /* add ~+1000ms vs current */
+.flow-line {
+  animation: drawLine var(--flow-duration) ease-in-out forwards;
+}
+@keyframes drawLine {
+  from { stroke-dashoffset: var(--dash, 120); opacity: .6; }
+  to   { stroke-dashoffset: 0;               opacity: 1;  }
+}
+@supports (animation-timeline: scroll()) {
+  .flow-line {
+    animation-timeline: scroll(root);
+    animation-range: contain 0% 100%;
+    animation-duration: auto;
+  }
+}
+
+/* ── Quality-of-life: prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

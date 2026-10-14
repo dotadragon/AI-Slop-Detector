@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     c2pa_trust_anchors_path: str = ""  # optional PEM bundle extending the builtin C2PA/CAI trust list
     enable_reconstruction_detector: bool = False  # Phase 7 signal OFF by default until benchmarked on real data
     enable_freq_detector: bool = False  # Tier 5 frequency-domain scaffold OFF by default until benchmarked
-    enable_audio_detector: bool = True  # Phase D11 audio modality enabled for evaluation
+    enable_audio_detector: bool = False  # PRODUCTION HOTFIX: AUC 0.493 is anti-correlated; disabled until retrained
     enable_document_forensics: bool = True  # Phase D13 PDF/DOCX figure forensics enabled for evaluation
     enable_video_detector: bool = True  # Video modality enabled for evaluation
     device: str = "auto"

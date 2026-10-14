@@ -3,7 +3,15 @@ import gsap from "gsap";
 import { ShieldCheck, ShieldAlert, AlertTriangle } from "lucide-react";
 import { scoreColor, scoreLabel } from "../../utils/validators";
 
-export function ScoreCard({ score }: { score: number }) {
+export function ScoreCard({
+  score,
+  confidence_range,
+  confidence_band,
+}: {
+  score: number;
+  confidence_range?: number[];
+  confidence_band?: string;
+}) {
   const pct = Math.round(score * 100);
   const numRef = useRef<HTMLSpanElement>(null);
   const circleRef = useRef<SVGCircleElement>(null);
@@ -40,6 +48,18 @@ export function ScoreCard({ score }: { score: number }) {
   }, [pct, circumference, offset]);
 
   const Icon = score > 0.70 ? ShieldAlert : score >= 0.35 ? AlertTriangle : ShieldCheck;
+
+  const bandColorMap: Record<string, string> = {
+    "DEFINITELY_AI": "var(--red)",
+    "LIKELY_AI": "var(--red)",
+    "MIXED": "var(--amber)",
+    "LIKELY_HUMAN": "var(--green)",
+    "DEFINITELY_HUMAN": "var(--green)",
+    "UNCERTAIN": "var(--fg3)",
+  };
+  const bandColor = confidence_band ? (bandColorMap[confidence_band] ?? "var(--fg3)") : undefined;
+  const rangeMin = confidence_range && confidence_range.length >= 2 ? Math.round(confidence_range[0] * 100) : null;
+  const rangeMax = confidence_range && confidence_range.length >= 2 ? Math.round(confidence_range[1] * 100) : null;
 
   return (
     <div className="score-card">
@@ -95,6 +115,21 @@ export function ScoreCard({ score }: { score: number }) {
             ? `${pct}% mixed heuristic & neural signals detected`
             : `${100 - pct}% confidence of authentic human photograph / graphic`}
         </p>
+        {rangeMin !== null && rangeMax !== null && (
+          <div className="score-confidence-range" aria-label="Confidence range">
+            <span className="score-confidence-range-label">Confidence range:</span>
+            <span className="score-confidence-range-value">{rangeMin}% – {rangeMax}%</span>
+          </div>
+        )}
+        {confidence_band && (
+          <div
+            className="score-confidence-band"
+            style={{ color: bandColor, borderColor: bandColor }}
+            aria-label={`Confidence band: ${confidence_band}`}
+          >
+            {confidence_band.replace(/_/g, " ")}
+          </div>
+        )}
         <div className="score-bar-track">
           <div
             className="score-bar-fill"

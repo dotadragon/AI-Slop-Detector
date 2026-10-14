@@ -73,20 +73,20 @@ export function TextInput({ onAnalyze, onUploadFile, loading }: TextInputProps) 
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: "rgba(0, 229, 255, 0.08)",
-            border: "1px solid rgba(0, 229, 255, 0.3)",
+            background: "color-mix(in srgb, var(--accent) 10%, var(--bg-card))",
+            border: "1px solid color-mix(in srgb, var(--accent) 34%, var(--border-card))",
             borderRadius: "6px",
             padding: "8px 12px",
             marginBottom: "12px",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-            <FileText size={16} style={{ color: "#00e5ff", flexShrink: 0 }} />
+            <FileText size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
             <div style={{ display: "flex", alignItems: "baseline", gap: "8px", overflow: "hidden" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#f8fafc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {selectedFile.name}
               </span>
-              <span style={{ fontSize: "10px", color: "#64748b", fontFamily: "monospace", flexShrink: 0 }}>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "monospace", flexShrink: 0 }}>
                 ({(selectedFile.size / 1024).toFixed(1)} KB)
               </span>
             </div>
@@ -98,7 +98,7 @@ export function TextInput({ onAnalyze, onUploadFile, loading }: TextInputProps) 
             style={{
               background: "none",
               border: "none",
-              color: "#94a3b8",
+              color: "var(--text-muted)",
               cursor: "pointer",
               padding: "2px",
               display: "flex",

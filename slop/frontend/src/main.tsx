@@ -3,6 +3,12 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import "./index.css";
 
+if (location.hostname === "localhost") {
+  const url = new URL(location.href);
+  url.hostname = "127.0.0.1";
+  location.replace(url.toString());
+}
+
 // ponytail: init theme from localStorage before first paint
 const savedTheme = localStorage.getItem("slop_theme") || "dark";
 document.documentElement.setAttribute("data-theme", savedTheme);

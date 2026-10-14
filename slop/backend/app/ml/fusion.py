@@ -471,8 +471,16 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             zone_definitely_human = float(calibrator_data["zone_definitely_human"])
             binary_threshold = float(calibrator_data["binary_threshold"])
 
+            # PRODUCTION HOTFIX 2026-10-14: artifact threshold 0.9149 produces
+            # only 21.8% AI recall on held-out data (HELDOUT_REPORT.md).
+            # Override to 0.55 until the calibrator artifact is retrained with
+            # a balanced operating point. Zone edges (zone_low/zone_high) are
+            # preserved from the artifact — only the binary verdict threshold changes.
+            THRESHOLD_OVERRIDE = 0.55
+            effective_threshold = THRESHOLD_OVERRIDE
+
             conf_band = _band_from_artifact(cal_prob, calibrator_data)
-            if binary_threshold is not None and cal_prob >= binary_threshold:
+            if cal_prob >= effective_threshold:
                 verdict = "AI"
             elif zone_low is not None and cal_prob >= zone_low:
                 verdict = "UNCERTAIN"

@@ -31,6 +31,9 @@ const PERCENT_SIGNAL_KEYS = new Set([
   "uniformity",
   // v4.1: text density
   "semantic_density_ratio",
+  // v3.5: Binoculars & Fast-DetectGPT zero-shot signals
+  "binoculars_ai_prob",
+  "fast_detectgpt_ai_prob",
 ]);
 
 const SIGNAL_ORDER = [
@@ -40,6 +43,10 @@ const SIGNAL_ORDER = [
   "multi_crop_ai_probability",
   "heuristic_score",
   "llm_pattern_score",
+  // v3.5: Binoculars & Fast-DetectGPT zero-shot
+  "binoculars_ai_prob",
+  "fast_detectgpt_ai_prob",
+  "observer_perplexity",
   // Image forensics
   "cfa_score",
   "dct_block_score",
@@ -99,6 +106,10 @@ const SIGNAL_LABELS: Record<string, string> = {
   "paragraph_uniformity": "Paragraph Uniformity",
   "stylometry_score": "Stylometry Score",
   "uniformity": "Text Uniformity",
+  // v3.5: Binoculars & Fast-DetectGPT zero-shot signals
+  "binoculars_ai_prob": "Binoculars Zero-Shot",
+  "fast_detectgpt_ai_prob": "Fast-DetectGPT Curvature",
+  "observer_perplexity": "Observer Perplexity",
 };
 
 // v3.0 & v4.1: Hide internal/redundant signals from display
@@ -173,9 +184,9 @@ export function SignalGrid({ signals }: { signals?: Record<string, unknown> }) {
                     letterSpacing: "0.05em",
                     padding: "1px 5px",
                     borderRadius: "3px",
-                    background: "rgba(0, 229, 255, 0.12)",
-                    color: "#00e5ff",
-                    border: "1px solid rgba(0, 229, 255, 0.3)",
+                    background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                    color: "var(--accent)",
+                    border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
                   }}
                   title="Corrected by forensic heuristic consensus"
                 >

@@ -24,38 +24,42 @@
 ```
 c:\Users\karth\Desktop\AISlop\
 ├── context.md                      # [THIS FILE] Master knowledge base & authoritative project context
-├── GEMINI.md                       # Operational directives (Zero-Mock, RTX 4050 budgeting, Neural-First Consensus)
+├── GEMINI.md                       # Operational directives (Top-5 Zero-Tolerance bans + pointer to rules)
+├── heldout_manifest.json           # Canonical SHA-256 manifest of sealed external held-out benchmark
+├── heldout_manifest.sha256         # Standard sha256sum verification manifest
 ├── run.bat                         # One-click Windows launcher (FastAPI on 8000 + Vite on 3000)
-├── setup_cuda_gpu.bat              # PyTorch CUDA 12.4 acceleration installer for NVIDIA RTX 4050
-├── pyrightconfig.json              # Root Pyright static analysis configuration (0 errors, 0 warnings)
-├── eval_accuracy.py                # Golden set benchmark test harness (Accuracy, Precision, Recall, F1)
-├── expand_golden_set.py            # Automated synthesis & curation tool for evaluation specimens
-├── train_fusion.py                 # Multi-modal calibrated linear probe & fusion weight trainer
-├── accuracy_report.json            # Machine-readable output from eval_accuracy.py
-├── _backup/                        # Stale database and artifact archives
+├── pyrightconfig.json              # Root Pyright static analysis configuration
+├── .github/                        # Sealed CI workflows and CODEOWNERS
+│   ├── CODEOWNERS                  # Human-only ownership over sealed evaluation & forensic paths
+│   └── workflows/ci.yml            # CI pipeline (fetch-depth: 0, verify_agent_integrity, lint_rules)
+│
+├── scripts/                        # Evaluation, verification, and training harnesses
+│   ├── eval_rigorous.py            # Rigorous held-out evaluation harness (SLOP_HELDOUT_DIR, paired flips, dev/final)
+│   ├── verify_agent_integrity.py   # Fail-closed git integrity guard blocking agent edits to sealed paths
+│   ├── lint_rules.py               # CI static analysis linter (clamps, imputed evidence features, protected headers)
+│   ├── eval_image_regression_gate.py # Image verdict regression gate
+│   └── verify_env.py               # Environment & PyTorch CUDA acceleration validator
 │
 ├── Model/                          # Primary verified offline neural weights & manifests
 │   ├── model_manifest.json         # SHA-256 integrity manifest for all local model weights
 │   ├── text/                       # RoBERTa sequence classifier + Qwen 2.5 Binoculars models
-│   │   ├── pytorch_model.bin (~498MB), config.json, tokenizer.json, vocab.json, merges.txt
-│   │   ├── qwen2.5_0.5b/           # Binoculars Observer model weights (safetensors ~988MB)
-│   │   └── qwen2.5_0.5b_instruct/  # Binoculars Performer model weights (safetensors ~988MB)
 │   ├── image/                      # Swin Transformer classifier + CLIP-ViT-L/14 linear probe
-│   │   ├── pytorch_model.bin (~347MB), config.json, preprocessor_config.json
-│   │   └── clip_vit_large/         # CLIP-ViT-L/14 model weights (safetensors ~1.71GB)
 │   ├── video/                      # ViT Deepfake classifier + YuNet face detection
-│   │   ├── face_detection_yunet_2023mar.onnx (~232KB)
-│   │   └── model.safetensors (~343MB), config.json, preprocessor_config.json
-│   └── fusion/                     # Trained logistic regression calibration & linear probe weights
-│       ├── clip_probe.pkl          # Image linear probe weights
-│       ├── image.pkl               # Image multi-signal fusion model
-│       ├── text.pkl                # Text multi-signal fusion model
-│       └── video.pkl               # Video multi-signal fusion model
+│   └── fusion/                     # Calibrated GBDT & probe artifacts
+│       ├── MODEL_HASHES.sha256     # SHA-256 manifest of model weight artifacts (binaries untracked)
+│       ├── text.pkl (== text_gbdt_v2.pkl)
+│       ├── image.pkl, video.pkl
+│       └── text_calibrator.pkl
 │
-├── golden_set/                     # Curated ground-truth test specimens for benchmark harness
+├── golden_set/                     # Curated ground-truth test specimens for regression gates
 │   ├── text/ (ai/ & human/)        # Synthetic LLM prose vs authentic human writing
 │   ├── image/ (ai/, human/, diag/) # Diffusion renderings, real camera photos, authentic diagrams
-│   └── video/ (ai/ & human_screen/)# Sora/Kling/Wan generative video vs screen recordings
+│   └── video/ (ai/ & human_screen/)# Generative video vs screen recordings
+│
+├── [EXTERNAL DATASET: c:\Users\karth\Desktop\AISlop_heldout_set\]
+│   ├── manifest.json / manifest.sha256 # Sealed dataset manifest
+│   ├── dev/                        # 320 items (agent-accessible evaluation split)
+│   └── final/                      # 102 items (human-only sealed evaluation split)
 │
 ├── .vscode/
 │   └── settings.json               # IDE configuration mapped directly to slop/backend/.venv
@@ -215,6 +219,10 @@ The project is strictly standardized on the backend virtual environment:
 ---
 
 ## 5. 📊 Empirical Benchmark Results (Live Inference on Golden Set)
+
+> ⚠️ **IMPORTANT: The table below is a REGRESSION SMOKE TEST on training data, not a real benchmark.**
+> Real held-out performance (eval_rigorous.py, n=66/37/8/100): Text 33.33%, Image 75.68%, Video 50%, Audio AUC 0.493.
+> See HELDOUT_REPORT.md for the honest numbers. See DATA_DISCIPLINE.md for the evaluation policy.
 
 Verified live on CUDA using real model weights via `eval_accuracy.py --quick`:
 
@@ -634,4 +642,40 @@ The per-generator TPs sum to the honest headline's 86/120. Known limitation: `mi
 Warm calls remain dominated by GPU feature extraction (coherence ≈0.2–0.44 s per call); the loaders were the only proven per-request reload and are now cached.
 
 **Behavioral identity proof:** production-path recompute from a deleted verdict cache reproduced exactly **86/34/60/0, bacc 85.83, AI recall 71.67, human 100.00, macro-F1 0.8071, 0 API disagreements**; field-level cache diff vs the saved pre-change verdicts: **0 differences across 1620 fields**; None-probe 6/6 valid; `test_no_inversion.py` 3 passed; full suite **91 passed** (`pytest_full_latency.log`).
+
+### Step 0: Operational Rules Protocol, Evaluation Data Sealing & Fail-Closed Integrity (2026-10-14)
+
+**Core Motivation:**
+To eliminate synthetic heuristic imputation, prevent test set data leakage, establish statistically rigorous evaluation standards, and strictly enforce agent boundaries, Step 0 overhauled the operational protocol before any subsequent functional or modelling modifications.
+
+1. **Protocol Overhaul (`ANTIGRAVITY_RULES.md` & `GEMINI.md`):**
+   * **Protected Comments:** Retired golden-set references; all protected modules enforce `# ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_rigorous.py ON THE SEALED SPLIT AND HUMAN APPROVAL`.
+   * **Rule 0 Protocol:** Pre- and post-runs evaluate `scripts/eval_rigorous.py --split dev` via `SLOP_HELDOUT_DIR`. Comparisons are conducted **per-sample (paired comparison)**, enumerating every flipped verdict. ECE is explicitly tagged as `UNRELIABLE (pending Step 1 positive-class ECE calculation fix)`. Reversions are strictly localized to `git restore <edited_files>` (prohibiting destructive `git reset --hard`).
+   * **Rule 2A (Sealed Paths):** Permanently seals `.github/**`, `scripts/verify_agent_integrity.py`, `scripts/lint_rules.py`, `slop/ANTIGRAVITY_RULES.md`, `GEMINI.md`, `heldout_manifest.json`, `heldout_manifest.sha256`, `validation_status.json`, `reliability.json`, external held-out dataset, `scripts/eval_rigorous.py`, `calibrators.json`, `Model/fusion/*.pkl`, `Model/fusion/MODEL_HASHES.sha256`, and threshold artifacts. The agent is prohibited from running `gh` write commands, merge operations, or using `git commit --no-verify`.
+   * **Rule 3 Refinement:** Strictly bans synthetic imputation of evidence features (`score`, `perplexity`, `ai_prob`, etc.). Missing evidence must degrade transparently or fail closed with `signals_missing`. Documented boolean presence flags (`is_diagram`, `has_face`) may default to `False`. The 9 pre-existing clamp and imputation violations in `fusion.py` and `document_forensics.py` are formally logged as the Step 3 backlog.
+   * **Rule 7 (Automated Static Linting):** Replaced manual self-attestation with automated CI linter `scripts/lint_rules.py`.
+   * **Rule 8 & 9 (Evidence & Scoping):** Every performance assertion requires `file:line` or raw CLI citation; changes require automated tests; work is restricted exclusively to files listed in the approved task plan.
+   * **GEMINI.md:** Refactored into a lightweight pointer to `ANTIGRAVITY_RULES.md` highlighting the Top-5 Zero-Tolerance bans.
+
+2. **External Data Sealing & Partitioning:**
+   * Compressed backup created: `heldout_set_backup.zip`.
+   * The 426 held-out evaluation specimens were partitioned using seeded (seed=42), stratified (by modality, class, and generator subtype), content-hash-sorted interleaving into:
+     - `c:\Users\karth\Desktop\AISlop_heldout_set\dev\` (320 items, agent-accessible)
+     - `c:\Users\karth\Desktop\AISlop_heldout_set\final\` (102 items, human-only sealed evaluation partition)
+   * `heldout_manifest.json` and `heldout_manifest.sha256` generated and verified (430 total files including partition manifests, verified byte-for-byte with zero drift).
+   * External dataset marked read-only at the OS level (`attrib +r /s /d`).
+   * In-repo `heldout_set/` folder deleted and added to `.gitignore`.
+
+3. **Evaluation Harness Hardening (`scripts/eval_rigorous.py`):**
+   * Enforces `SLOP_HELDOUT_DIR` environment variable at startup, raising fatal `RuntimeError` if unset or invalid.
+   * Enforces startup manifest verification, checking SHA-256 hashes of all partition files against `heldout_manifest.json` before inference; aborts immediately on mismatch.
+   * Added `--split {dev, final}` and `--baseline <report.json>` paired per-sample comparison logging all verdict flips.
+
+4. **CI & Git Infrastructure:**
+   * `scripts/verify_agent_integrity.py`: Fail-closed check exiting with code 1 on any git error, missing base ref, or modification to sealed paths.
+   * `scripts/lint_rules.py`: Scans git diff for hard clamps and banned evidence defaults.
+   * `.github/CODEOWNERS`: Maps sealed paths exclusively to human repository owner.
+   * `.github/workflows/ci.yml`: Enforces `fetch-depth: 0`, integrity check, and rule linter as mandatory gates.
+   * `Model/fusion/MODEL_HASHES.sha256`: SHA-256 manifest committed in place of binary model weights.
+   * Branch checkpointing: Base commit `9d2694f` on `pre-step0-baseline` tagged `pre-step0`, with Step 0 isolated on branch `step0-rules-and-sealing`.
 

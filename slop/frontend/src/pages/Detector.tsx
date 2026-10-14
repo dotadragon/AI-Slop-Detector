@@ -28,6 +28,18 @@ function ExperimentalBanner({ label }: { label: string }) {
   );
 }
 
+function AccuracyBanner({ badge, desc }: { badge: string; desc: string }) {
+  return (
+    <div className="experimental-heldout-banner" role="note" aria-label={badge}>
+      <FlaskConical size={16} className="experimental-banner-icon" />
+      <div className="experimental-banner-text">
+        <span className="experimental-banner-badge">{badge}</span>
+        <span className="experimental-banner-desc">{desc}</span>
+      </div>
+    </div>
+  );
+}
+
 export function Detector() {
   useSeo({
     title: "Detector — SLOP",
@@ -75,13 +87,10 @@ export function Detector() {
     if (mode === "image") {
       return (
         <div className="image-mode-view">
-          <div className="experimental-heldout-banner" role="note" aria-label="Experimental image detection status">
-            <FlaskConical size={16} className="experimental-banner-icon" />
-            <div className="experimental-banner-text">
-              <span className="experimental-banner-badge">Experimental / Held-out 78.85%</span>
-              <span className="experimental-banner-desc">Canonical evaluation (n=52, SDXL &amp; Unsplash). Real-world out-of-distribution performance varies.</span>
-            </div>
-          </div>
+          <AccuracyBanner
+            badge="Held-out Accuracy: 75.7% (n=52, SDXL)"
+            desc="ECE 0.39 — treat scores as approximate. Real-world out-of-distribution performance varies."
+          />
           <ImageUpload
             loading={loading}
             result={result}
@@ -115,7 +124,10 @@ export function Detector() {
     if (mode === "video") {
       return (
         <div className="video-mode-view">
-          <ExperimentalBanner label="Video" />
+          <AccuracyBanner
+            badge="Held-out Accuracy: 50% (Limited Training Data)"
+            desc="Results are experimental. Video modality has limited training data — do not use for binary verdicts."
+          />
           <VideoUpload
             loading={loading}
             onFile={(file) => {
@@ -142,7 +154,10 @@ export function Detector() {
     if (mode === "document") {
       return (
         <div className="document-mode-view">
-          <ExperimentalBanner label="Document" />
+          <AccuracyBanner
+            badge="Experimental — AUC 0.868 (n=24 containers)"
+            desc="Validated on 24 document containers. Small sample size — treat results as indicative, not conclusive."
+          />
           <DocumentUpload
             loading={loading}
             result={result}
@@ -165,7 +180,10 @@ export function Detector() {
     if (mode === "audio") {
       return (
         <div className="audio-mode-view">
-          <ExperimentalBanner label="Audio" />
+          <AccuracyBanner
+            badge="Temporarily Disabled — Under Revalidation"
+            desc="Audio detection is under active revalidation. Scores shown are not yet production-ready."
+          />
           <AudioUpload
             loading={loading}
             result={result}
@@ -186,7 +204,12 @@ export function Detector() {
       );
     }
     return (
-      <TextInput
+      <>
+        <AccuracyBanner
+          badge="Held-out Accuracy: ~34% AI Recall at Production Threshold"
+          desc="Results show confidence bands, not binary verdicts. Avoid using scores alone to reach conclusions."
+        />
+        <TextInput
         loading={loading}
         onAnalyze={(text) => {
           track("scan_started", { mode: "text", chars: text.length });
@@ -212,6 +235,7 @@ export function Detector() {
           });
         }}
       />
+      </>
     );
   }, [mode, loading, result, detection.image, detection.text, detection.textUpload, detection.video, detection.document, detection.audio, addScan]);
 
@@ -231,7 +255,7 @@ export function Detector() {
           {activeInput}
         </div>
         <div className="detector-right-pane">
-          <ResultPanel result={result} loading={loading} error={errorMessage} />
+          <ResultPanel result={result} loading={loading} error={errorMessage} modality={mode} />
         </div>
       </div>
       <ScanHistory

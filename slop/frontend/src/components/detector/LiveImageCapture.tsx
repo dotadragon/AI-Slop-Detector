@@ -184,9 +184,9 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
         />
 
         {!streaming && (
-          <div style={{ textAlign: "center", color: "#64748b" }}>
+          <div style={{ textAlign: "center", color: "var(--text-muted)" }}>
             {sourceType === "camera" ? <Camera size={36} style={{ margin: "0 auto 8px", opacity: 0.6 }} /> : <Monitor size={36} style={{ margin: "0 auto 8px", opacity: 0.6 }} />}
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "#94a3b8" }}>{status}</div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)" }}>{status}</div>
             <div style={{ fontSize: "11px", marginTop: "4px" }}>Click Start Live to begin real-time stream inspection</div>
           </div>
         )}
@@ -207,7 +207,7 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
           >
             {/* Top row: source badge + live confidence radar */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div style={{ background: "rgba(7, 9, 14, 0.8)", border: "1px solid #1e293b", padding: "4px 8px", borderRadius: "4px", fontSize: "10px", color: "#00e5ff", fontFamily: "monospace" }}>
+              <div style={{ background: "rgba(7, 9, 14, 0.8)", border: "1px solid #1e293b", padding: "4px 8px", borderRadius: "4px", fontSize: "10px", color: "var(--accent)", fontFamily: "monospace" }}>
                 SOURCE: {sourceType.toUpperCase()} | ViT-SWIN + PRNU
               </div>
 
@@ -232,14 +232,14 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
             </div>
 
             {/* Corner Crosshairs */}
-            <div style={{ position: "absolute", top: 12, left: 12, width: 14, height: 14, borderTop: "2px solid #00e5ff", borderLeft: "2px solid #00e5ff" }} />
-            <div style={{ position: "absolute", top: 12, right: 12, width: 14, height: 14, borderTop: "2px solid #00e5ff", borderRight: "2px solid #00e5ff" }} />
-            <div style={{ position: "absolute", bottom: 12, left: 12, width: 14, height: 14, borderBottom: "2px solid #00e5ff", borderLeft: "2px solid #00e5ff" }} />
-            <div style={{ position: "absolute", bottom: 12, right: 12, width: 14, height: 14, borderBottom: "2px solid #00e5ff", borderRight: "2px solid #00e5ff" }} />
+            <div style={{ position: "absolute", top: 12, left: 12, width: 14, height: 14, borderTop: "2px solid var(--accent)", borderLeft: "2px solid var(--accent)" }} />
+            <div style={{ position: "absolute", top: 12, right: 12, width: 14, height: 14, borderTop: "2px solid var(--accent)", borderRight: "2px solid var(--accent)" }} />
+            <div style={{ position: "absolute", bottom: 12, left: 12, width: 14, height: 14, borderBottom: "2px solid var(--accent)", borderLeft: "2px solid var(--accent)" }} />
+            <div style={{ position: "absolute", bottom: 12, right: 12, width: 14, height: 14, borderBottom: "2px solid var(--accent)", borderRight: "2px solid var(--accent)" }} />
 
             {/* Bottom Status Ticker */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-              <div style={{ fontSize: "10px", color: "#64748b", fontFamily: "monospace", background: "rgba(7, 9, 14, 0.8)", padding: "2px 6px", borderRadius: "2px" }}>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "monospace", background: "rgba(7, 9, 14, 0.8)", padding: "2px 6px", borderRadius: "2px" }}>
                 BUFFER: 384x216 | 64KB PKT
               </div>
             </div>
@@ -251,7 +251,7 @@ export function LiveImageCapture({ onResult }: LiveImageCaptureProps) {
 
       {/* Action Footer */}
       <div className="panel-actions" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px" }}>
-        <span style={{ fontSize: "12px", color: "#94a3b8" }}>{status}</span>
+        <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{status}</span>
         <button
           className={streaming ? "btn btn-danger" : "btn btn-primary"}
           type="button"

@@ -52,6 +52,10 @@ def test_baseline_file_integrity():
         assert s["baseline_verdict"] in ("AI", "HUMAN")
 
 
+@pytest.mark.skipif(
+    not os.environ.get("SLOP_HELDOUT_DIR"),
+    reason="SLOP_HELDOUT_DIR environment variable is not set; external heldout image regression gate test skipped",
+)
 def test_image_verdict_regression_gate():
     """Runs full image comparison against committed baseline and asserts flips <= N."""
     max_flips = int(os.environ.get("MAX_ALLOWED_IMAGE_FLIPS", "0"))
