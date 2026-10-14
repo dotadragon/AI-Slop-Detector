@@ -60,6 +60,29 @@ def _confidence_band(score: float) -> str:
         return "DEFINITELY_HUMAN"
 
 
+def _band_from_artifact(score: float, cal: dict[str, float]) -> str:
+    thr = cal.get("binary_threshold")
+    zlow = cal.get("zone_low")
+    zhigh = cal.get("zone_high")
+    zdef = cal.get("zone_definitely_human")
+    # Definite AI edge: highest of decision edges we have
+    candidates = [x for x in [thr, zhigh] if x is not None]
+    ai_def = max(candidates) if candidates else thr
+
+    # Order matters: most confident to least
+    if zdef is not None and score <= zdef:
+        return "DEFINITELY_HUMAN"
+    if zlow is not None and score < zlow:
+        return "LIKELY_HUMAN"
+    if zhigh is not None and score < zhigh:
+        return "UNCERTAIN"
+    if thr is not None and score < thr:
+        return "LIKELY_AI"
+    if ai_def is not None and score >= ai_def:
+        return "DEFINITELY_AI"
+    return "UNCERTAIN"
+
+
 def _confidence_range(score: float, disagreement: float = 0.0) -> list[float]:
     margin = 0.04 + min(0.10, max(0.0, float(disagreement)) * 0.20)
     return [round(max(0.0, score - margin), 3), round(min(1.0, score + margin), 3)]
@@ -443,27 +466,18 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             eps = 1e-6
             logit = float(np.log(max(raw_prob, eps) / max(1.0 - raw_prob, eps)))
             cal_prob = float(platt.predict_proba(np.array([[logit]]))[0, 1])
-            binary_threshold = float(calibrator_data["binary_threshold"])
             zone_low = float(calibrator_data["zone_low"])
             zone_high = float(calibrator_data["zone_high"])
             zone_definitely_human = float(calibrator_data["zone_definitely_human"])
+            binary_threshold = float(calibrator_data["binary_threshold"])
 
-            # Band purely from the artifact's own numbers. The two AI edges are
-            # ordered by value rather than assumed, so both bands stay monotone
-            # and reachable even though binary_threshold (0.915) sits above
-            # zone_high (0.703) for this model.
-            ai_definite = max(binary_threshold, zone_high)
-            ai_likely = min(binary_threshold, zone_high)
-            if cal_prob >= ai_definite:
-                conf_band = "DEFINITELY_AI"
-            elif cal_prob >= ai_likely:
-                conf_band = "LIKELY_AI"
-            elif cal_prob >= zone_low:
-                conf_band = "UNCERTAIN"
-            elif cal_prob >= zone_definitely_human:
-                conf_band = "LIKELY_HUMAN"
+            conf_band = _band_from_artifact(cal_prob, calibrator_data)
+            if binary_threshold is not None and cal_prob >= binary_threshold:
+                verdict = "AI"
+            elif zone_low is not None and cal_prob >= zone_low:
+                verdict = "UNCERTAIN"
             else:
-                conf_band = "DEFINITELY_HUMAN"
+                verdict = "HUMAN"
 
         score = cal_prob
         code_score, code_verdict, code_band, code_rng = _apply_code_forensics(score, features, contributions)
@@ -489,6 +503,8 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             "zone_definitely_human": (
                 None if zone_definitely_human is None else round(zone_definitely_human, 4)
             ),
+            "verdict": verdict if (platt is not None and not missing) else None,
+            "model_path": "gbdt_platt_v2",
         }
 
     # ── Legacy logistic regression path ──
@@ -585,6 +601,8 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
         "confidence_range": conf_range,
         "primary_signal": "code_forensics_ast_identifier" if code_verdict is not None else ("roberta_neural_classifier" if (neural_prob is not None and neural_prob >= 0.50) else "stylometric_forensics"),
         "contributions": contributions,
+        "model_path": "legacy_logistic_fallback",
+        "signals_missing": missing_zero_shot,
     }
 
 
@@ -675,12 +693,17 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
 
         if synthid > 0.5 and is_screen_rec <= 0.5:
             score = max(score, 0.85)
-        elif peak_threat >= 0.80 and high_threat_count >= 2 and is_screen_rec <= 0.5:
+        elif peak_threat >= 0.80 and high_threat_count >= 3 and is_screen_rec <= 0.5:
             score = max(score, 0.80)
         elif is_screen_rec > 0.5:
             if has_deepfake <= 0.5:
                 # Authentic human software UI screen recording
                 score = min(score, 0.05)
+
+        # Natural real-camera footage correction: suppress false positives on authentic video
+        if is_screen_rec <= 0.5 and peak_threat < 0.75 and top_quartile < 0.65 and has_deepfake <= 0.5:
+            score *= 0.65
+            contributions["natural_video_correction"] = True
 
     final_score = round(_clamp01(score), 3)
 
