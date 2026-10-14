@@ -153,3 +153,30 @@ def test_code_forensics_human_manual_coded():
     assert api_res["overall_score"] <= 0.08
     api_verdict = api_res["signals"].get("code_origin") or api_res["signals"].get("code_verdict") or ""
     assert "Manual Coded" in api_verdict
+
+
+def test_text_analysis_single_sentence_fast_path():
+    """Verify single-sentence fast path produces valid score and sentence prob."""
+    from app.ml.text_detector import analyze_text
+    sample = "The quick brown fox jumps over the lazy dog."
+    res = analyze_text(sample)
+    assert 0 <= res["overall_score"] <= 1
+    assert len(res["sentences"]) == 1
+    assert "ai_prob" in res["sentences"][0]
+
+
+def test_coherence_and_perplexity_features():
+    """Verify perplexity and coherence feature extraction with backbone optimization."""
+    from app.ml.perplexity import compute_perplexity, compute_coherence
+    sample = (
+        "Artificial intelligence is transforming many industries across the world. "
+        "Machine learning models require substantial computational resources to train. "
+        "Researchers continue to develop more efficient algorithms for edge deployment."
+    )
+    ppl = compute_perplexity(sample)
+    coh = compute_coherence(sample)
+    assert ppl["available"] is True
+    assert ppl["perplexity"] > 0
+    assert coh["available"] is True
+    assert 0 <= coh["coherence_mean"] <= 1
+

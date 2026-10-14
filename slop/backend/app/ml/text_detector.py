@@ -826,9 +826,9 @@ def code_syntax_analysis(text: str) -> dict:
 # MAIN HEURISTIC PIPELINE
 # ============================================================================
 
-def _heuristic(text: str) -> dict:
+def _heuristic(text: str, _already_clean: bool = False) -> dict:
     """CPU-safe heuristic analysis with comprehensive signal extraction and security normalization."""
-    clean = _normalize_and_sanitize_text(text)
+    clean = text if _already_clean else _normalize_and_sanitize_text(text)
     injection_info = _detect_prompt_injection(clean)
     code_info = code_syntax_analysis(clean)
     is_code = code_info["is_code"]
@@ -1235,7 +1235,7 @@ def analyze_text(text: str) -> dict:
     """v3.0: Heuristic + Neural ensemble with smart disagreement handling,
     confidence calibration, LLM attribution, and security normalization."""
     clean_text = _normalize_and_sanitize_text(text)
-    h = _heuristic(clean_text)
+    h = _heuristic(clean_text, _already_clean=True)
     mp = _model_prob(clean_text)
     llm_pattern_score = h["signals"].get("llm_pattern_score", 0.0)
     attribution = h.get("llm_attribution", {})
@@ -1261,7 +1261,7 @@ def analyze_text(text: str) -> dict:
     import math as _math
     ppl_res = compute_perplexity(clean_text)
     coh_res = compute_coherence(clean_text)
-    lm_perplexity = ppl_res["perplexity"] if ppl_res["available"] and not _math.isnan(ppl_res["perplexity"]) else 0.0
+    lm_perplexity = ppl_res["perplexity"] if ppl_res["available"] and not _math.isnan(ppl_res["perplexity"]) else None
     coherence_mean = coh_res["coherence_mean"] if coh_res["available"] and not _math.isnan(coh_res["coherence_mean"]) else 0.0
     coherence_var = coh_res["coherence_var"] if coh_res["available"] and not _math.isnan(coh_res["coherence_var"]) else 0.0
 
@@ -1325,7 +1325,10 @@ def analyze_text(text: str) -> dict:
         )
 
         # Per-sentence neural scores
-        sent_probs = _model_sentence_probs([s["text"] for s in h["sentences"]])
+        if len(h["sentences"]) == 1 and len(clean_text) <= 1500:
+            sent_probs = [round(mp, 3)]
+        else:
+            sent_probs = _model_sentence_probs([s["text"] for s in h["sentences"]])
         for s, sp in zip(h["sentences"], sent_probs):
             if sp is not None:
                 s["model_ai_prob"] = sp

@@ -41,6 +41,23 @@ def _load_perplexity_model():
         return _PERPLEXITY_TOK, _PERPLEXITY_MODEL, _ACTIVE_DEVICE
 
     try:
+        from app.core.config import settings
+        import app.ml.binoculars as bino
+
+        if (
+            bino._OBSERVER_MODEL is not None
+            and bino._OBSERVER_TOK is not None
+            and getattr(bino, "_ACTIVE_DEVICE", None) == settings.compute_device
+        ):
+            _PERPLEXITY_MODEL = bino._OBSERVER_MODEL
+            _PERPLEXITY_TOK = bino._OBSERVER_TOK
+            _ACTIVE_DEVICE = bino._ACTIVE_DEVICE
+            logger.info("perplexity_model_reused_observer", device=settings.compute_device)
+            return _PERPLEXITY_TOK, _PERPLEXITY_MODEL, _ACTIVE_DEVICE
+    except Exception:
+        pass
+
+    try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
     except ImportError:
@@ -121,12 +138,6 @@ def compute_perplexity(text: str, max_tokens: int = 512) -> dict[str, Any]:
     except Exception as exc:
         logger.warning("perplexity_compute_failed", error=str(exc), exc_type=type(exc).__name__)
         return {"perplexity": float("nan"), "log_likelihood": float("nan"), "available": False}
-    finally:
-        # Free inference tensors promptly; keep weights resident for the batch.
-        if device == "cuda":
-            import torch as _t
-
-            _t.cuda.empty_cache()
 
 
 def compute_coherence(text: str, max_sentences: int = 12, max_tokens: int = 768) -> dict[str, Any]:
@@ -156,12 +167,18 @@ def compute_coherence(text: str, max_sentences: int = 12, max_tokens: int = 768)
         sents = sents[:max_sentences]
 
         embs = []
+        backbone = getattr(model, "model", None)
         for s in sents:
-            ids = tok(s, return_tensors="pt", truncation=True, max_length=128).input_ids.to(device)
+            enc = tok(s, return_tensors="pt", truncation=True, max_length=128)
+            ids = enc.input_ids.to(device)
             with torch.inference_mode():
-                out = model(ids, output_hidden_states=True)
-            h = out.hidden_states[-1][0].float().cpu()  # [T, H]
-            mask = tok(s, return_tensors="pt", truncation=True, max_length=128).attention_mask[0].cpu()
+                if backbone is not None:
+                    out = backbone(ids)
+                    h = out.last_hidden_state[0].float().cpu()  # [T, H]
+                else:
+                    out = model(ids, output_hidden_states=True)
+                    h = out.hidden_states[-1][0].float().cpu()  # [T, H]
+            mask = enc.attention_mask[0].cpu()
             pooled = (h * mask.unsqueeze(-1)).sum(0) / mask.sum().clamp(min=1)
             embs.append(torch.nn.functional.normalize(pooled, dim=0))
 
