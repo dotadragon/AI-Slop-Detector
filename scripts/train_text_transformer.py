@@ -48,8 +48,8 @@ class TextDataset(Dataset):
     def __len__(self):
         return len(self.texts)
 
-    def __getitem__(self, idx):
-        clean_text = _normalize_and_sanitize_text(self.texts[idx])
+    def __getitem__(self, index: int):
+        clean_text = _normalize_and_sanitize_text(self.texts[index])
         encoding = self.tokenizer(
             clean_text,
             truncation=True,
@@ -97,7 +97,7 @@ def evaluate_model(model, dataloader, device):
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["label"].to(device)
 
-            with torch.amp.autocast("cuda"):
+            with torch.amp.autocast("cuda"):  # type: ignore[bad-context-manager]
                 outputs = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = outputs.logits
                 loss = criterion(logits, labels)
@@ -131,7 +131,7 @@ def evaluate_model(model, dataloader, device):
     macro_f1 = 0.5 * (f1_ai + f1_hu)
 
     per_gen = {}
-    for sid, p, y in zip(all_ids, all_preds, all_labels):
+    for sid, p, y in zip(all_ids, all_preds.tolist(), all_labels.tolist()):
         parts = sid.split("/")
         gen_key = f"{parts[0]}/{parts[1]}"
         g = per_gen.setdefault(gen_key, {"tp": 0, "fp": 0, "tn": 0, "fn": 0})
@@ -223,7 +223,7 @@ def main():
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["label"].to(device)
 
-            with torch.amp.autocast("cuda"):
+            with torch.amp.autocast("cuda"):  # type: ignore[bad-context-manager]
                 outputs = model(input_ids=input_ids, attention_mask=attention_mask)
                 loss = criterion(outputs.logits, labels) / args.grad_accum
 

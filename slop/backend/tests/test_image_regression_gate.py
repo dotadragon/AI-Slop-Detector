@@ -23,7 +23,7 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from eval_image_regression_gate import (  # noqa: E402
+from scripts.eval_image_regression_gate import (  # noqa: E402
     DEFAULT_BASELINE_PATH,
     compare_against_baseline,
     run_evaluation,

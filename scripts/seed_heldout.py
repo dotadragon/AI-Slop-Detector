@@ -60,7 +60,7 @@ def _fetch(url: str, timeout: int = 60, retries: int = 3) -> bytes:
                 time.sleep(45 * (attempt + 1))  # datasets-server is strict: 45s/90s/135s
             else:
                 time.sleep(3 * (attempt + 1))
-    raise last_exc
+    raise (last_exc if last_exc is not None else RuntimeError("seed_heldout download failed"))
 
 
 def _save_text(subdir: Path, idx: int, text: str) -> None:

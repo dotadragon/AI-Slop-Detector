@@ -11,7 +11,7 @@ def test_text_analysis_returns_explainable_signals():
     client = TestClient(app)
     client.get("/api/v1/auth/csrf")
     csrf_token = client.cookies.get("csrf_token")
-    headers: dict[str, str] = {"X-CSRF-Token": str(csrf_token)} if csrf_token else {}
+    headers: dict[str, str] = {"X-CSRF-Token": csrf_token} if csrf_token else {}
     response = client.post(
         "/api/v1/text/analyze",
         json={"text": "Furthermore, it is important to note that this passage presents a balanced overview. In conclusion, the system is robust."},
@@ -28,7 +28,7 @@ def test_text_rejects_null_bytes():
     client = TestClient(app)
     client.get("/api/v1/auth/csrf")
     csrf_token = client.cookies.get("csrf_token")
-    headers: dict[str, str] = {"X-CSRF-Token": str(csrf_token)} if csrf_token else {}
+    headers: dict[str, str] = {"X-CSRF-Token": csrf_token} if csrf_token else {}
     response = client.post("/api/v1/text/analyze", json={"text": "bad\x00input"}, headers=headers)
     assert response.status_code == 422
 
@@ -145,7 +145,7 @@ def test_code_forensics_human_manual_coded():
     client = TestClient(app)
     client.get("/api/v1/auth/csrf")
     csrf_token = client.cookies.get("csrf_token")
-    headers: dict[str, str] = {"X-CSRF-Token": str(csrf_token)} if csrf_token else {}
+    headers: dict[str, str] = {"X-CSRF-Token": csrf_token} if csrf_token else {}
     resp = client.post("/api/v1/text/analyze", json={"text": human_0252}, headers=headers)
     assert resp.status_code == 200
     api_res = resp.json()["result"]

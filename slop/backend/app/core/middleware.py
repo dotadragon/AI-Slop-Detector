@@ -54,6 +54,8 @@ class CsrfMiddleware(BaseHTTPMiddleware):
         "/api/v1/video/upload-stream",
         "/api/v1/image/upload",
         "/api/v1/text/upload",
+        "/api/v1/detect/",
+        "/api/v1/feedback",
         "/docs",
         "/openapi.json",
     )

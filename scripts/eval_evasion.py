@@ -37,13 +37,23 @@ import sys
 import unicodedata
 from pathlib import Path
 
-backend_path = Path(__file__).resolve().parent / "slop" / "backend"
+backend_path = Path(__file__).resolve().parent.parent / "slop" / "backend"
 sys.path.insert(0, str(backend_path))
 
 from app.ml.text_detector import analyze_text  # noqa: E402
 
+import os
+
 ROOT = Path(__file__).resolve().parent
-HELDOUT = ROOT / "heldout_set" / "text"
+_env_heldout = os.environ.get("SLOP_HELDOUT_DIR")
+if _env_heldout and (Path(_env_heldout) / "dev" / "text").exists():
+    HELDOUT = Path(_env_heldout) / "dev" / "text"
+elif (ROOT / "heldout_set" / "text").exists():
+    HELDOUT = ROOT / "heldout_set" / "text"
+elif (ROOT / "_archive" / "raid_val" / "text").exists():
+    HELDOUT = ROOT / "_archive" / "raid_val" / "text"
+else:
+    HELDOUT = ROOT / "raid_val" / "text"
 
 # ---------------------------------------------------------------------------
 # Attack implementations

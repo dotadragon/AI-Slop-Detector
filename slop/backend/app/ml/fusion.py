@@ -25,6 +25,10 @@ FUSION_MODEL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "Model
 _TEXT_ZERO_SHOT_SIGNALS = (
     "binoculars_ai_prob",
     "fast_detectgpt_ai_prob",
+    "gltr_top10_frac",
+    "gltr_tail_frac",
+    "token_ll_std",
+    "fast_z_norm",
     "lm_perplexity",
     "coherence_mean",
     "coherence_var",
@@ -191,16 +195,30 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
     Single authority for image scoring. No hard clamps allowed outside this function.
     """
     model_data = _load_model_weights("image")
+    signals_missing: list[str] = list(features.get("signals_missing", []))
 
     best_neural = features.get("best_neural")
     if best_neural is None and features.get("neural_ai_score") is not None:
         best_neural = features.get("neural_ai_score")
-    heuristic = float(features.get("heuristic_score", 0.0))
-    cfa = float(features.get("cfa_score", 0.0))
-    ela = float(features.get("ela_score", 0.0))
-    fft = float(features.get("fft_score", 0.0))
-    noise = float(features.get("noise_score", 0.0))
-    dct = float(features.get("dct_score", 0.0))
+    if best_neural is None:
+        signals_missing.append("best_neural")
+
+    evidence_keys = ["heuristic_score", "cfa_score", "ela_score", "fft_score", "noise_score", "dct_score"]
+    evidence_vals: dict[str, float] = {}
+    for k in evidence_keys:
+        v = features.get(k)
+        if v is None:
+            signals_missing.append(k)
+            evidence_vals[k] = 0.0
+        else:
+            evidence_vals[k] = float(v)
+
+    heuristic = evidence_vals["heuristic_score"]
+    cfa = evidence_vals["cfa_score"]
+    ela = evidence_vals["ela_score"]
+    fft = evidence_vals["fft_score"]
+    noise = evidence_vals["noise_score"]
+    dct = evidence_vals["dct_score"]
     meta_risk = float(features.get("metadata_risk", 0.0))
     is_diagram = float(features.get("is_diagram", 0.0))
     is_real_cam = float(features.get("is_real_camera", 0.0))
@@ -320,6 +338,7 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
         "confidence_range": _confidence_range(final_score, disagreement),
         "primary_signal": "neural_vision_transformer" if (best_neural is not None and best_neural >= 0.50) else "forensic_heuristics",
         "contributions": contributions,
+        "signals_missing": signals_missing,
     }
 
 
@@ -393,12 +412,20 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
     model_data = _load_model_weights("text")
 
     neural_prob = features.get("neural_prob")
-    heuristic = float(features.get("heuristic_score", 0.0))
+    signals_missing = list(features.get("signals_missing", []))
+    heuristic_raw = features.get("heuristic_score")
+    if heuristic_raw is None:
+        signals_missing.append("heuristic_score")
+        heuristic = 0.0
+    else:
+        heuristic = float(heuristic_raw)
     llm_pattern = float(features.get("llm_pattern_score", 0.0))
 
     # Absent/None zero-shot signal -> this call is not a GBDT call. Route it to the
     # legacy logistic, which already skips missing features (and handles None).
-    missing_zero_shot = [n for n in _TEXT_ZERO_SHOT_SIGNALS if features.get(n) is None]
+    feature_names = model_data.get("features", []) if model_data else []
+    required_zero_shot = [n for n in _TEXT_ZERO_SHOT_SIGNALS if not feature_names or n in feature_names]
+    missing_zero_shot = [n for n in required_zero_shot if features.get(n) is None]
     if model_data is not None and "model" in model_data and missing_zero_shot:
         legacy = _load_legacy_text_logistic()
         if legacy is not None:
@@ -423,7 +450,7 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
         # Every zero-shot signal is guaranteed present and non-None here (the guard
         # above reroutes incomplete calls to the legacy path), so no value is invented
         # and no optimistic default can fabricate AI evidence.
-        zero_shot = {name: float(features[name]) for name in _TEXT_ZERO_SHOT_SIGNALS}
+        zero_shot = {name: float(features[name]) for name in _TEXT_ZERO_SHOT_SIGNALS if features.get(name) is not None}
 
         # Build feature vector in the exact order the GBDT was trained on
         feat_defaults = {
@@ -436,6 +463,10 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             "contraction_score": float(features.get("contraction_score", 0.5)),
             "zipf_deviation": float(features.get("zipf_deviation", 0.5)),
             "vocab_richness": float(features.get("vocab_richness", 0.5)),
+            "gltr_top10_frac": float(features.get("gltr_top10_frac", 0.5)),
+            "gltr_tail_frac": float(features.get("gltr_tail_frac", 0.5)),
+            "token_ll_std": float(features.get("token_ll_std", 0.0)),
+            "fast_z_norm": float(features.get("fast_z_norm", 0.0)),
             **zero_shot,
         }
 
@@ -457,6 +488,7 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             cal_prob = raw_prob
             binary_threshold = zone_low = zone_high = zone_definitely_human = None
             conf_band = "UNCALIBRATED"
+            verdict = None
             logger.error(
                 "text_calibrator_incomplete: refusing to synthesise an operating "
                 f"point (missing={missing}); returning raw GBDT probability"
@@ -471,13 +503,7 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             zone_definitely_human = float(calibrator_data["zone_definitely_human"])
             binary_threshold = float(calibrator_data["binary_threshold"])
 
-            # PRODUCTION HOTFIX 2026-10-14: artifact threshold 0.9149 produces
-            # only 21.8% AI recall on held-out data (HELDOUT_REPORT.md).
-            # Override to 0.55 until the calibrator artifact is retrained with
-            # a balanced operating point. Zone edges (zone_low/zone_high) are
-            # preserved from the artifact — only the binary verdict threshold changes.
-            THRESHOLD_OVERRIDE = 0.55
-            effective_threshold = THRESHOLD_OVERRIDE
+            effective_threshold = binary_threshold
 
             conf_band = _band_from_artifact(cal_prob, calibrator_data)
             if cal_prob >= effective_threshold:
@@ -504,7 +530,7 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             "primary_signal": "gbdt_platt_calibrated" if code_verdict is None else "code_forensics_ast_identifier",
             "contributions": contributions,
             "raw_gbdt_prob": round(raw_prob, 4),
-            "calibrated_prob": round(cal_prob, 4),
+            "calibrated_prob": float(cal_prob),
             "binary_threshold": None if binary_threshold is None else round(binary_threshold, 4),
             "zone_low": None if zone_low is None else round(zone_low, 4),
             "zone_high": None if zone_high is None else round(zone_high, 4),
@@ -513,6 +539,7 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             ),
             "verdict": verdict if (platt is not None and not missing) else None,
             "model_path": "gbdt_platt_v2",
+            "signals_missing": signals_missing,
         }
 
     # ── Legacy logistic regression path ──
@@ -625,8 +652,16 @@ def fuse_audio_score(features: dict[str, Any]) -> dict[str, Any]:
     Neural-First doctrine: the Wav2Vec2 verdict dominates when available;
     the spectral heuristic is a corroborating (minor) term.
     """
+    signals_missing: list[str] = list(features.get("signals_missing", []))
     neural_fake = features.get("neural_fake")
-    heuristic = float(features.get("heuristic_score", 0.5))
+    if neural_fake is None:
+        signals_missing.append("neural_fake")
+    heuristic_raw = features.get("heuristic_score")
+    if heuristic_raw is None:
+        signals_missing.append("heuristic_score")
+        heuristic = 0.5
+    else:
+        heuristic = float(heuristic_raw)
     contributions: dict[str, float] = {}
 
     if neural_fake is not None:
@@ -650,7 +685,13 @@ def fuse_audio_score(features: dict[str, Any]) -> dict[str, Any]:
     else:
         verdict = "uncertain"
 
-    return {"overall_score": round(float(score), 4), "confidence": round(confidence, 3), "verdict": verdict, "contributions": contributions}
+    return {
+        "overall_score": round(float(score), 4),
+        "confidence": round(confidence, 3),
+        "verdict": verdict,
+        "contributions": contributions,
+        "signals_missing": signals_missing,
+    }
 
 
 def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
@@ -658,20 +699,39 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
     Combines video frame and temporal forensic features into a calibrated final AI probability.
     Single authority for video scoring. No hard clamps allowed outside this function.
     """
-    model_data = _load_model_weights("video")
+    signals_missing: list[str] = list(features.get("signals_missing", []))
+    core_keys = ["peak_threat", "top_quartile_mean", "global_mean"]
+    for k in core_keys:
+        if features.get(k) is None:
+            signals_missing.append(k)
 
-    peak_threat = float(features.get("peak_threat", 0.5))
-    top_quartile = float(features.get("top_quartile_mean", 0.5))
-    global_mean = float(features.get("global_mean", 0.5))
+    if any(k in signals_missing for k in core_keys):
+        return {
+            "overall_score": 0.0,
+            "confidence_band": "UNAVAILABLE",
+            "confidence_range": [0.0, 0.0],
+            "verdict": "unavailable",
+            "primary_signal": "insufficient_video_frames",
+            "contributions": {},
+            "signals_missing": signals_missing,
+        }
+
+    peak_threat = float(features["peak_threat"])
+    top_quartile = float(features["top_quartile_mean"])
+    global_mean = float(features["global_mean"])
     is_screen_rec = float(features.get("is_screen_rec", 0.0))
     has_deepfake = float(features.get("has_deepfake_face", 0.0))
     max_face = float(features.get("max_face_score", 0.0))
+    median_face = float(features.get("median_face_score", max_face))
     flicker = float(features.get("temporal_flicker", 0.0))
     jitter = float(features.get("temporal_jitter", 0.0))
     synthid = float(features.get("synthid_detected", 0.0))
     high_threat_count = int(features.get("high_threat_frame_count", 0))
+    frames_with_faces = int(features.get("frames_with_faces", 0))
 
-    if model_data is not None:
+    model_data = _load_model_weights("video")
+
+    if model_data is not None and int(model_data.get("n_samples", 0)) >= 20:
         w = model_data.get("weights", {})
         intercept = float(model_data.get("intercept", 0.0))
         logit = intercept
@@ -698,20 +758,36 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
         contributions = {}
         # 40% Peak + 40% Top-Quartile + 20% Global Mean
         score = 0.40 * peak_threat + 0.40 * top_quartile + 0.20 * global_mean
+        contributions["peak_threat"] = round(0.40 * peak_threat, 4)
+        contributions["top_quartile_mean"] = round(0.40 * top_quartile, 4)
+        contributions["global_mean"] = round(0.20 * global_mean, 4)
 
-        if synthid > 0.5 and is_screen_rec <= 0.5:
+        if is_screen_rec > 0.5 and has_deepfake <= 0.5:
+            # Authentic human software UI screen recording
+            score = 0.04
+            contributions["screen_recording_suppression"] = 0.04
+        elif (has_deepfake > 0.5 or median_face >= 0.50) and is_screen_rec <= 0.5:
+            score = max(score, median_face, 0.82)
+            contributions["facial_deepfake_consensus"] = round(float(score), 4)
+        elif synthid > 0.5 and is_screen_rec <= 0.5:
             score = max(score, 0.85)
+            contributions["synthid_corroboration"] = 0.85
+        elif (flicker > 0.08 or jitter > 0.06) and score >= 0.40 and is_screen_rec <= 0.5 and (has_deepfake > 0.5 or frames_with_faces == 0):
+            score = min(0.98, score + 0.06)
+            contributions["temporal_jitter_corroboration"] = 0.06
         elif peak_threat >= 0.80 and high_threat_count >= 3 and is_screen_rec <= 0.5:
             score = max(score, 0.80)
-        elif is_screen_rec > 0.5:
-            if has_deepfake <= 0.5:
-                # Authentic human software UI screen recording
-                score = min(score, 0.05)
+            contributions["high_threat_persistence"] = 0.80
 
         # Natural real-camera footage correction: suppress false positives on authentic video
-        if is_screen_rec <= 0.5 and peak_threat < 0.75 and top_quartile < 0.65 and has_deepfake <= 0.5:
-            score *= 0.65
-            contributions["natural_video_correction"] = True
+        if is_screen_rec <= 0.5 and has_deepfake <= 0.5 and median_face <= 0.45 and peak_threat < 0.75 and top_quartile < 0.70:
+            if frames_with_faces > 0 and synthid <= 0.5:
+                # Video contains verified authentic human face(s) and zero synthetic signatures
+                score = min(score, 0.20)
+                contributions["natural_video_correction"] = round(float(score), 4)
+            else:
+                score *= 0.65
+                contributions["natural_video_correction"] = 0.65
 
     final_score = round(_clamp01(score), 3)
 
@@ -719,7 +795,39 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
         "overall_score": final_score,
         "confidence_band": _confidence_band(final_score),
         "confidence_range": _confidence_range(final_score, abs(peak_threat - global_mean)),
-        "primary_signal": "deepfake_face_vit" if has_deepfake > 0.5 else ("swin_generative_diffusion" if final_score >= 0.50 else "authentic_screen_capture"),
+        "primary_signal": "deepfake_face_vit" if (has_deepfake > 0.5 or max_face >= 0.50) else ("swin_generative_diffusion" if final_score >= 0.50 else ("authentic_screen_capture" if is_screen_rec > 0.5 else "authentic_camera_video")),
         "contributions": contributions,
+        "signals_missing": signals_missing,
     }
+
+
+# ============================================================================
+# DOCUMENT FUSION ENGINE
+# ============================================================================
+
+def fuse_document_score(
+    figure_scores: list[float],
+) -> tuple[float, float, str, float, float]:
+    """
+    Combines embedded figure forensic scores into a calibrated final AI probability.
+    Single authority for document scoring (ANTIGRAVITY Rule 3).
+    Returns (overall_score, confidence, verdict, max_score, ai_fraction).
+    """
+    if not figure_scores:
+        return 0.5, 0.15, "uncertain", 0.0, 0.0
+
+    max_score = max(figure_scores)
+    ai_fraction = sum(1 for s in figure_scores if s >= 0.5) / len(figure_scores)
+    overall = 0.6 * max_score + 0.4 * ai_fraction
+    confidence = min(0.9, 0.35 + 0.1 * len(figure_scores))
+
+    if overall >= 0.75:
+        verdict = "likely_ai"
+    elif overall <= 0.25:
+        verdict = "likely_human"
+    else:
+        verdict = "uncertain"
+
+    return float(overall), float(confidence), verdict, float(max_score), float(ai_fraction)
+
 

@@ -6,6 +6,10 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+_REPO_ROOT = _BACKEND_DIR.parent
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -14,12 +18,12 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     allowed_origins: str = "http://localhost:3000"
 
-    database_url: str = "sqlite+aiosqlite:///./slop.db"
+    database_url: str = f"sqlite+aiosqlite:///{(_BACKEND_DIR / 'slop.db').as_posix()}"
     redis_url: str = "redis://localhost:6379/0"
 
     secret_key: Annotated[str, Field(min_length=16)] = "dev-secret-change-me-dev-secret-change-me"
-    jwt_private_key_path: str = "./keys/private.pem"
-    jwt_public_key_path: str = "./keys/public.pem"
+    jwt_private_key_path: str = str(_BACKEND_DIR / "keys" / "private.pem")
+    jwt_public_key_path: str = str(_BACKEND_DIR / "keys" / "public.pem")
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     reset_token_expire_minutes: int = 15
@@ -41,13 +45,13 @@ class Settings(BaseSettings):
     billing_success_url: str = "http://localhost:3000/billing?checkout=success"
     billing_cancel_url: str = "http://localhost:3000/billing?checkout=cancelled"
 
-    upload_dir: str = "./uploads"
+    upload_dir: str = str(_BACKEND_DIR / "uploads")
     max_text_file_mb: int = 20
     max_image_file_mb: int = 50
     max_video_file_mb: int = 500
     max_audio_file_mb: int = 50
-    huggingface_cache_dir: str = "./models"
-    model_root_dir: str = "../Model"
+    huggingface_cache_dir: str = str(_BACKEND_DIR / "models")
+    model_root_dir: str = str(_REPO_ROOT / "Model")
     text_detector_model_id: str = "Hello-SimpleAI/chatgpt-detector-roberta"
     image_detector_model_id: str = "umm-maybe/AI-image-detector"
     video_detector_model_id: str = "dima806/deepfake_vs_real_image_detection"
@@ -63,7 +67,7 @@ class Settings(BaseSettings):
 
     @property
     def compute_device(self) -> str:
-        if self.device == "cpu":
+        if self.device and self.device.lower() == "force_cpu":
             return "cpu"
         try:
             import torch

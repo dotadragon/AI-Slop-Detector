@@ -18,7 +18,7 @@ from sklearn.metrics import roc_auc_score
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "slop" / "backend"))
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("SECRET_KEY", "local-verification-key-not-for-production-0123456789")
@@ -26,7 +26,7 @@ os.environ.setdefault("SLOP_HELDOUT_DIR", r"c:\Users\karth\Desktop\AISlop_heldou
 
 
 def main() -> int:
-    from eval_rigorous import discover_stratified
+    from scripts.eval_rigorous import discover_stratified
     from app.ml.binoculars import compute_binoculars_and_curvature
     from app.ml.text_detector import _normalize_and_sanitize_text
 

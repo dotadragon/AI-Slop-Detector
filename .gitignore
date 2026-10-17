@@ -44,3 +44,13 @@ Model/fusion/*_v2.pkl
 Model/fusion/*_calibrator.pkl
 Model/fusion/*_gbdt.pkl
 Model/fusion/*_pre_raid.pkl
+
+# Artifacts, baselines, and reports
+pre_*_report.json
+text_latency_baseline.json
+evasion_report.json
+text_production_*.json
+*.db
+*.db-journal
+*.db-wal
+.kiro/

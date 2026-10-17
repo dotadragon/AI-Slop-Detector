@@ -89,7 +89,7 @@ def _check_exif(image: Image.Image) -> dict:
 # TIER 2: Heuristic (ELA + FFT + Noise + CFA + DCT)
 # ============================================================================
 
-def _ela_score(image: Image.Image) -> tuple[float, str]:
+def _ela_score(image: Image.Image, include_heatmap: bool = True) -> tuple[float, str | None]:
     """Error Level Analysis — pixel-level compression artifact detection."""
     rgb = image.convert("RGB")
     buf = io.BytesIO()
@@ -97,6 +97,12 @@ def _ela_score(image: Image.Image) -> tuple[float, str]:
     buf.seek(0)
     resaved = Image.open(buf)
     diff = ImageChops.difference(rgb, resaved)
+
+    arr = np.asarray(diff, dtype="float32")
+    score = _clamp01(float(arr.std()) / 12)
+
+    if not include_heatmap:
+        return round(score, 3), None
 
     extrema: Any = diff.getextrema()
     if extrema and isinstance(extrema[0], (tuple, list)):
@@ -106,9 +112,6 @@ def _ela_score(image: Image.Image) -> tuple[float, str]:
     else:
         max_diff = 1.0
     amplified = ImageEnhance.Brightness(diff).enhance(255.0 / max_diff)
-
-    arr = np.asarray(diff, dtype="float32")
-    score = _clamp01(float(arr.std()) / 12)
 
     out = io.BytesIO()
     amplified.save(out, format="PNG")
@@ -632,7 +635,7 @@ def _gradcam_heatmap(image: Image.Image) -> str | None:
 # MAIN PIPELINE
 # ============================================================================
 
-def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_path: str | None = None) -> dict:
+def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_path: str | None = None, is_video_frame: bool = False) -> dict:
     """v3.0: Multi-tier pipeline with enhanced forensics, explainability, and responsible CFA gating."""
     # Forensic Categorization
     is_diagram, is_anime_ai, is_real_camera = _forensic_image_type(image)
@@ -642,7 +645,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     c2pa = _check_c2pa(file_path) if file_path else {"has_c2pa": False, "verified": False}
 
     # Tier 2: Heuristics (ELA + FFT + Noise + CFA + DCT)
-    ela, ela_heatmap = _ela_score(image)
+    ela, ela_heatmap = _ela_score(image, include_heatmap=not is_video_frame)
     fft = _fft_score(image)
     noise = _noise_score(image)
     cfa = _cfa_score(image)       # v3.0: CFA analysis
@@ -654,14 +657,22 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     # if an uploaded image has undergone heavy JPEG compression or chroma subsampling.
     # When JPEG quality is below 95, zero out the CFA penalty to prevent false positives on genuine user photos.
     jpeg_quality = _estimate_jpeg_quality(image)
-    if jpeg_quality is not None and jpeg_quality < 95:
+    if is_video_frame or (jpeg_quality is not None and jpeg_quality < 95):
         cfa_effective = min(cfa, 0.20) if cfa <= 0.20 else 0.50  # Keep real-camera confirmation, neutralize AI penalty
-        cfa_weight = 0.05
-        ela_weight = 0.24
-        fft_weight = 0.24
-        noise_weight = 0.23
-        dct_weight = 0.14
-        exif_weight = 0.10
+        if is_video_frame:
+            cfa_weight = 0.05
+            ela_weight = 0.265
+            fft_weight = 0.265
+            noise_weight = 0.255
+            dct_weight = 0.165
+            exif_weight = 0.0
+        else:
+            cfa_weight = 0.05
+            ela_weight = 0.24
+            fft_weight = 0.24
+            noise_weight = 0.23
+            dct_weight = 0.14
+            exif_weight = 0.10
     else:
         cfa_effective = cfa
         cfa_weight = 0.18
@@ -687,7 +698,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     multi_crop_prob, crop_probs = _multi_crop_score(image)
 
     # v3.0: Native GradCAM explainability heatmap
-    gradcam_b64 = _gradcam_heatmap(image)
+    gradcam_b64 = None if is_video_frame else _gradcam_heatmap(image)
 
     # Tier 4: Digital Signature & Bounding Box
     raw_bytes = None
@@ -709,7 +720,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     )
 
     # v3.4: PRNU (Photo-Response Non-Uniformity) sensor noise floor map
-    prnu_b64 = generate_prnu_noise_map(image)
+    prnu_b64 = None if is_video_frame else generate_prnu_noise_map(image)
 
     # v3.5: NPR (Neighboring Pixel Relationships) extractor
     from app.ml.npr_extractor import compute_npr_features
@@ -815,7 +826,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     heuristic_override_explanation = None
     if best_neural is not None:
         delta = overall - best_neural
-        neural_pct = int(round(best_neural * 100))
+        neural_pct = round(best_neural * 100)
         final_pct = int(round(overall * 100))
         if delta <= -0.30:
             if is_diagram:

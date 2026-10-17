@@ -24,8 +24,9 @@ warnings.filterwarnings("ignore")
 
 root = Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == "scripts" else Path(__file__).resolve().parent
 sys.path.insert(0, str(root / "slop" / "backend"))
+sys.path.insert(0, str(root))
 
-from eval_rigorous import discover_stratified, run_image, run_video, summarize  # noqa: E402
+from scripts.eval_rigorous import discover_stratified, run_image, run_video, summarize  # noqa: E402
 
 BASELINE = root / "Model" / "fusion" / "promoted_baseline_modalities.json"
 TOLERANCE = 0.02

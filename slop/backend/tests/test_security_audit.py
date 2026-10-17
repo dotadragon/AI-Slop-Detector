@@ -254,3 +254,44 @@ def test_websocket_malformed_uuid_rejected():
     assert exc_info.value.code == 1008
 
 
+def test_homoglyph_attack_robustness_on_prose():
+    """Validates that cross-script Cyrillic/Greek homoglyphs on Latin prose yield bit-identical scores."""
+    import random
+    prose = (
+        "Artificial intelligence models have made remarkable strides across various domains. "
+        "These systems demonstrate innovative solutions and facilitate rapid progress. "
+        "Furthermore, careful evaluation is crucial to ensure reliable deployment."
+    )
+    homoglyphs = {
+        "a": "а", "e": "е", "o": "о", "p": "р", "c": "с", "y": "у",
+        "x": "х", "i": "і", "s": "ѕ", "j": "ј", "A": "А", "B": "В",
+        "E": "Е", "K": "К", "M": "М", "H": "Н", "O": "О", "P": "Р",
+        "C": "С", "T": "Т", "X": "Х",
+    }
+    rng = random.Random(42)
+    attacked = "".join(homoglyphs[ch] if ch in homoglyphs and rng.random() < 0.35 else ch for ch in prose)
+    assert attacked != prose
+    assert _normalize_and_sanitize_text(attacked) == _normalize_and_sanitize_text(prose)
+    orig_score = analyze_text(prose)["overall_score"]
+    attack_score = analyze_text(attacked)["overall_score"]
+    assert orig_score == attack_score
+
+
+def test_whitespace_attack_robustness_on_prose():
+    """Validates that intra-sentence space-doubling and single-newline breaks yield bit-identical scores on prose."""
+    import re
+    prose = (
+        "Artificial intelligence models have made remarkable strides across various domains. "
+        "These systems demonstrate innovative solutions and facilitate rapid progress. "
+        "Furthermore, careful evaluation is crucial to ensure reliable deployment."
+    )
+    attacked = re.sub(r"(?<=\S) (?=\S)", "  ", prose)
+    attacked = re.sub(r"\. ", ".\n", attacked)
+    assert attacked != prose
+    assert _normalize_and_sanitize_text(attacked) == _normalize_and_sanitize_text(prose)
+    orig_score = analyze_text(prose)["overall_score"]
+    attack_score = analyze_text(attacked)["overall_score"]
+    assert orig_score == attack_score
+
+
+

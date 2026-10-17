@@ -102,6 +102,10 @@ def evict_perplexity_model() -> None:
         pass
 
 
+_UNAVAILABLE_PERPLEXITY: dict[str, Any] = {"perplexity": float("nan"), "log_likelihood": float("nan"), "available": False}
+_UNAVAILABLE_COHERENCE: dict[str, Any] = {"coherence_mean": float("nan"), "coherence_var": float("nan"), "available": False}
+
+
 def compute_perplexity(text: str, max_tokens: int = 512) -> dict[str, Any]:
     """Compute causal-LM perplexity (and per-token burstiness proxy) for text.
 
@@ -111,7 +115,7 @@ def compute_perplexity(text: str, max_tokens: int = 512) -> dict[str, Any]:
     """
     loaded = _load_perplexity_model()
     if loaded is None:
-        return {"perplexity": float("nan"), "log_likelihood": float("nan"), "available": False}
+        return dict(_UNAVAILABLE_PERPLEXITY)
 
     tok, model, device = loaded
     import torch
@@ -119,7 +123,7 @@ def compute_perplexity(text: str, max_tokens: int = 512) -> dict[str, Any]:
     try:
         ids = tok(text, return_tensors="pt", truncation=True, max_length=max_tokens).input_ids.to(device)
         if ids.shape[1] < 2:
-            return {"perplexity": float("nan"), "log_likelihood": float("nan"), "available": False}
+            return dict(_UNAVAILABLE_PERPLEXITY)
 
         with torch.inference_mode():
             logits = model(ids).logits
@@ -137,7 +141,7 @@ def compute_perplexity(text: str, max_tokens: int = 512) -> dict[str, Any]:
         }
     except Exception as exc:
         logger.warning("perplexity_compute_failed", error=str(exc), exc_type=type(exc).__name__)
-        return {"perplexity": float("nan"), "log_likelihood": float("nan"), "available": False}
+        return dict(_UNAVAILABLE_PERPLEXITY)
 
 
 def compute_coherence(text: str, max_sentences: int = 12, max_tokens: int = 768) -> dict[str, Any]:
@@ -153,7 +157,7 @@ def compute_coherence(text: str, max_sentences: int = 12, max_tokens: int = 768)
     """
     loaded = _load_perplexity_model()
     if loaded is None:
-        return {"coherence_mean": float("nan"), "coherence_var": float("nan"), "available": False}
+        return dict(_UNAVAILABLE_COHERENCE)
 
     tok, model, device = loaded
     import re as _re
@@ -163,7 +167,7 @@ def compute_coherence(text: str, max_sentences: int = 12, max_tokens: int = 768)
         # lightweight sentence split (avoid a dependency on nltk)
         sents = [s.strip() for s in _re.split(r"(?<=[.!?])\s+", text) if len(s.strip().split()) >= 4]
         if len(sents) < 3:
-            return {"coherence_mean": float("nan"), "coherence_var": float("nan"), "available": False}
+            return dict(_UNAVAILABLE_COHERENCE)
         sents = sents[:max_sentences]
 
         embs = []
@@ -192,4 +196,4 @@ def compute_coherence(text: str, max_sentences: int = 12, max_tokens: int = 768)
         }
     except Exception as exc:
         logger.warning("coherence_compute_failed", error=str(exc), exc_type=type(exc).__name__)
-        return {"coherence_mean": float("nan"), "coherence_var": float("nan"), "available": False}
+        return dict(_UNAVAILABLE_COHERENCE)

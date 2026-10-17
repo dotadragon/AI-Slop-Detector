@@ -2,10 +2,26 @@
   "venvPath": "slop/backend",
   "venv": ".venv",
   "extraPaths": [
+    ".",
     "slop/backend",
+    "scripts",
     "slop/backend/.venv/Lib/site-packages"
   ],
+  "exclude": [
+    "_archive",
+    ".agents",
+    ".freebuff",
+    ".kiro",
+    "artifacts",
+    "uploads",
+    "keys",
+    "models",
+    "**/node_modules",
+    "**/__pycache__",
+    "slop/backend/.venv"
+  ],
   "typeCheckingMode": "basic",
+  "reportMissingImports": false,
   "reportMissingTypeStubs": false,
   "reportAttributeAccessIssue": false,
   "reportGeneralTypeIssues": false,
@@ -18,7 +34,9 @@
     {
       "root": "slop/backend",
       "extraPaths": [
+        ".",
         "slop/backend",
+        "scripts",
         "slop/backend/.venv/Lib/site-packages"
       ]
     }

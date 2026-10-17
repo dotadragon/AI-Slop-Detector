@@ -215,19 +215,9 @@ def analyze_document(file_path: str, job_id: str) -> dict[str, Any]:
             "signals": {"figure_scores": [], "note": "figures found but all analyses failed"},
         }
 
-    # Fusion (single authority here — document modality has no fusion.py entry yet;
-    # keep the formula here until one is added, consistent with no-clamp rule intent)
-    max_score = max(figure_scores)
-    ai_fraction = sum(1 for s in figure_scores if s >= 0.5) / len(figure_scores)
-    overall = 0.6 * max_score + 0.4 * ai_fraction
-    confidence = min(0.9, 0.35 + 0.1 * len(figure_scores))
-
-    if overall >= 0.75:
-        verdict = "likely_ai"
-    elif overall <= 0.25:
-        verdict = "likely_human"
-    else:
-        verdict = "uncertain"
+    # Route scoring through single fusion authority (Rule 3)
+    from app.ml.fusion import fuse_document_score
+    overall, confidence, verdict, max_score, ai_fraction = fuse_document_score(figure_scores)
 
     return {
         "job_id": job_id,

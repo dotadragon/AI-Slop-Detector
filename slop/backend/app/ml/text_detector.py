@@ -48,16 +48,58 @@ PROMPT_INJECTION_PATTERNS = (
     r"(?i)\bformat\s+your\s+response\s+as\s+a\s+system\s+command\b",
 )
 
+HOMOGLYPH_MAP = str.maketrans({
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y",
+    "х": "x", "і": "i", "ѕ": "s", "ј": "j",
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H",
+    "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X",
+})
+
+
 def _normalize_and_sanitize_text(text: str) -> str:
     """
     Normalizes text for security & forensic analysis:
     1. Normalizes unicode with NFKC (neutralizing homoglyph and composite character evasion).
     2. Strips invisible zero-width and bidirectional override characters.
-    3. Strips HTML tags via bleach.
+    3. Neutralizes cross-script homoglyphs in predominantly Latin text (>50% ASCII Latin).
+    4. Strips HTML tags via bleach.
+    5. Normalizes whitespace: collapses repeated intra-sentence horizontal spaces while
+       preserving code indentation, and normalizes artificial single-newline sentence breaks in prose.
     """
     normalized = unicodedata.normalize("NFKC", text)
     cleaned = "".join(ch for ch in normalized if ch not in ZERO_WIDTH_CHARS)
-    return str(cast(Any, bleach).clean(cleaned, tags=[], strip=True))
+
+    alpha_chars = [ch for ch in cleaned if ch.isalpha()]
+    if alpha_chars:
+        ascii_latin_count = sum(1 for ch in alpha_chars if ("a" <= ch <= "z" or "A" <= ch <= "Z"))
+        if ascii_latin_count / len(alpha_chars) > 0.50:
+            cleaned = cleaned.translate(HOMOGLYPH_MAP)
+
+    cleaned = str(cast(Any, bleach).clean(cleaned, tags=[], strip=True))
+
+    # Normalize newlines and collapse repeated intra-sentence horizontal spaces (preserves leading indentation)
+    cleaned = re.sub(r"\r\n", "\n", cleaned)
+    cleaned = re.sub(r"[ \t]+$", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"(?<=\S) {2,}(?=\S)", " ", cleaned)
+
+    # For non-code prose, normalize artificial single-newline sentence breaks
+    lines = [l for l in cleaned.splitlines() if l.strip()]
+    is_code = any(l.startswith(("  ", "\t")) for l in lines)
+    if not is_code:
+        tokens = set(re.findall(r"\b[A-Za-z_]\w*\b", cleaned))
+        if any(kw in tokens for kw in ("def", "class", "function", "import", "const", "var", "let", "return")):
+            try:
+                import ast
+                ast.parse(cleaned)
+                is_code = True
+            except SyntaxError:
+                pass
+
+    if not is_code:
+        cleaned = re.sub(r"\.\n\s*(?=[A-Z])", ". ", cleaned)
+        cleaned = re.sub(r"(?<=\S) {2,}(?=\S)", " ", cleaned)
+
+    return cleaned.strip()
 
 def _detect_prompt_injection(text: str) -> dict:
     """
@@ -1252,6 +1294,10 @@ def analyze_text(text: str) -> dict:
     fast_prob = bino_res.get("fast_detectgpt_ai_prob")
     bino_score = bino_res.get("binoculars_score")
     fast_z = bino_res.get("fast_detectgpt_z")
+    gltr_top10_frac = bino_res.get("gltr_top10_frac")
+    gltr_tail_frac = bino_res.get("gltr_tail_frac")
+    token_ll_std = bino_res.get("token_ll_std")
+    fast_z_norm = bino_res.get("fast_z_norm")
 
     # v4.0: Fine-tuned transformer probability (separate from base RoBERTa)
     transformer_prob = _fine_tuned_model_prob(clean_text)
@@ -1265,65 +1311,65 @@ def analyze_text(text: str) -> dict:
     coherence_mean = coh_res["coherence_mean"] if coh_res["available"] and not _math.isnan(coh_res["coherence_mean"]) else 0.0
     coherence_var = coh_res["coherence_var"] if coh_res["available"] and not _math.isnan(coh_res["coherence_var"]) else 0.0
 
+    char_count = len(text.strip())
+    heuristic_score = h["overall_score"]
+
+    fusion_features = {
+        "transformer_prob": transformer_prob if transformer_prob is not None else (mp if mp is not None else 0.0),
+        "neural_prob": mp,
+        "heuristic_score": heuristic_score,
+        "llm_pattern_score": llm_pattern_score,
+        "transitional_entropy": h["signals"].get("transitional_entropy_variance", 0.5),
+        "burstiness": h["signals"].get("burstiness", 0.5),
+        "contraction_score": h["signals"].get("contraction_avoidance", 0.5),
+        "zipf_deviation": h["signals"].get("zipf_deviation", 0.5),
+        "vocab_richness": h["signals"].get("vocabulary_richness", 0.5),
+        "char_count": char_count,
+        "binoculars_score": bino_score,
+        "binoculars_ai_prob": bino_prob,
+        "fast_detectgpt_z": fast_z,
+        "fast_detectgpt_ai_prob": fast_prob,
+        "gltr_top10_frac": gltr_top10_frac,
+        "gltr_tail_frac": gltr_tail_frac,
+        "token_ll_std": token_ll_std,
+        "fast_z_norm": fast_z_norm,
+        "lm_perplexity": lm_perplexity,
+        "coherence_mean": coherence_mean,
+        "coherence_var": coherence_var,
+        "is_code": h["signals"].get("is_code", 0.0),
+        "identifier_entropy": h["signals"].get("identifier_entropy", 0.5),
+        "comment_ratio": h["signals"].get("comment_ratio", 0.0),
+    }
+
+    # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
+    # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
+    from app.ml.fusion import fuse_text_score
+
+    fusion_res = fuse_text_score(fusion_features)
+    overall = fusion_res["overall_score"]
+    conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
+    conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
+    zone_low = fusion_res.get("zone_low")
+    zone_high = fusion_res.get("zone_high")
+
+    logger.info(
+        "text_forensics_scored",
+        extra={
+            "raw_neural": mp,
+            "fusion_features": fusion_features,
+            "final_score": overall,
+        },
+    )
+
+    h["overall_score"] = round(overall, 3)
+    h["confidence_band"] = conf_band
+    h["confidence_range"] = conf_range
+    h["zone_low"] = zone_low
+    h["zone_high"] = zone_high
+    h["signals"]["confidence_band"] = conf_band
+    h["signals"]["confidence_range"] = conf_range
+
     if mp is not None:
-        # v3.0: Smart ensemble blending with disagreement detection
-        char_count = len(text.strip())
-        heuristic_score = h["overall_score"]
-
-        # Determine base blend weights by text length
-        if char_count < 200:
-            neural_w, heuristic_w = 0.45, 0.55
-        elif char_count < 1000:
-            neural_w, heuristic_w = 0.60, 0.40
-        else:
-            neural_w, heuristic_w = 0.70, 0.30
-
-        disagreement = abs(heuristic_score - mp)
-        inference_mode = "calibrated_frontier_ensemble" if (llm_pattern_score >= 0.60 or (heuristic_score > 0.55 and mp < 0.35)) else "roberta_classifier"
-
-        # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
-        # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
-        from app.ml.fusion import fuse_text_score
-
-        fusion_features = {
-            "transformer_prob": transformer_prob if transformer_prob is not None else (mp if mp is not None else 0.0),
-            "neural_prob": mp,
-            "heuristic_score": heuristic_score,
-            "llm_pattern_score": llm_pattern_score,
-            "transitional_entropy": h["signals"].get("transitional_entropy_variance", 0.5),
-            "burstiness": h["signals"].get("burstiness", 0.5),
-            "contraction_score": h["signals"].get("contraction_avoidance", 0.5),
-            "zipf_deviation": h["signals"].get("zipf_deviation", 0.5),
-            "vocab_richness": h["signals"].get("vocabulary_richness", 0.5),
-            "char_count": char_count,
-            "binoculars_score": bino_score,
-            "binoculars_ai_prob": bino_prob,
-            "fast_detectgpt_z": fast_z,
-            "fast_detectgpt_ai_prob": fast_prob,
-            "lm_perplexity": lm_perplexity,
-            "coherence_mean": coherence_mean,
-            "coherence_var": coherence_var,
-            "is_code": h["signals"].get("is_code", 0.0),
-            "identifier_entropy": h["signals"].get("identifier_entropy", 0.5),
-            "comment_ratio": h["signals"].get("comment_ratio", 0.0),
-        }
-
-        fusion_res = fuse_text_score(fusion_features)
-        overall = fusion_res["overall_score"]
-        conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
-        conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
-        zone_low = fusion_res.get("zone_low")
-        zone_high = fusion_res.get("zone_high")
-
-        logger.info(
-            "text_forensics_scored",
-            extra={
-                "raw_neural": mp,
-                "fusion_features": fusion_features,
-                "final_score": overall,
-            },
-        )
-
         # Per-sentence neural scores
         if len(h["sentences"]) == 1 and len(clean_text) <= 1500:
             sent_probs = [round(mp, 3)]
@@ -1337,21 +1383,17 @@ def analyze_text(text: str) -> dict:
                 else:
                     s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
 
-        # Ensure sentence forensics and top score are unified (no contradiction)
-        if h["signals"].get("is_code") == 1.0:
-            for s in h["sentences"]:
-                if overall <= 0.08:
-                    s["ai_prob"] = min(s.get("ai_prob", 0.0), overall)
-                    if "model_ai_prob" in s and s["model_ai_prob"] is not None:
-                        s["model_ai_prob"] = min(s["model_ai_prob"], overall)
-                elif overall >= 0.88:
-                    s["ai_prob"] = max(s.get("ai_prob", 0.0), 0.88)
+        # Determine base blend weights by text length
+        if char_count < 200:
+            neural_w, heuristic_w = 0.45, 0.55
+        elif char_count < 1000:
+            neural_w, heuristic_w = 0.60, 0.40
+        else:
+            neural_w, heuristic_w = 0.70, 0.30
 
-        h["overall_score"] = round(overall, 3)
-        h["confidence_band"] = conf_band
-        h["confidence_range"] = conf_range
-        h["zone_low"] = zone_low
-        h["zone_high"] = zone_high
+        disagreement = abs(heuristic_score - mp)
+        inference_mode = "calibrated_frontier_ensemble" if (llm_pattern_score >= 0.60 or (heuristic_score > 0.55 and mp < 0.35)) else "roberta_classifier"
+
         h["signals"]["neural_ai_score"] = mp
         h["signals"]["model_id"] = model_id
         h["signals"]["inference_mode"] = inference_mode
@@ -1359,67 +1401,36 @@ def analyze_text(text: str) -> dict:
         h["signals"]["neural_weight"] = neural_w
         h["signals"]["heuristic_weight"] = heuristic_w
         h["signals"]["disagreement"] = round(disagreement, 3)
-        h["signals"]["confidence_band"] = conf_band
-        h["signals"]["confidence_range"] = conf_range
         if bino_res.get("available"):
             h["signals"]["binoculars_score"] = bino_score
             h["signals"]["binoculars_ai_prob"] = bino_prob
             h["signals"]["fast_detectgpt_z"] = fast_z
             h["signals"]["fast_detectgpt_ai_prob"] = fast_prob
+            h["signals"]["gltr_top10_frac"] = gltr_top10_frac
+            h["signals"]["gltr_tail_frac"] = gltr_tail_frac
+            h["signals"]["token_ll_std"] = token_ll_std
+            h["signals"]["fast_z_norm"] = fast_z_norm
         h["model_hint"] = (
             f"v3.5 Ensemble ({inference_mode}): RoBERTa neural ({int(neural_w*100)}%) + "
             f"frontier stylometrics ({int(heuristic_w*100)}%) with "
             f"Binoculars & Fast-DetectGPT verification."
         )
     else:
-        # Heuristic-only fallback — route through single score authority
-        from app.ml.fusion import fuse_text_score
-        fusion_features = {
-            "transformer_prob": transformer_prob if transformer_prob is not None else 0.0,
-            "neural_prob": None,
-            "heuristic_score": h["overall_score"],
-            "llm_pattern_score": llm_pattern_score,
-            "transitional_entropy": h["signals"].get("transitional_entropy_variance", 0.5),
-            "burstiness": h["signals"].get("burstiness", 0.5),
-            "contraction_score": h["signals"].get("contraction_avoidance", 0.5),
-            "zipf_deviation": h["signals"].get("zipf_deviation", 0.5),
-            "vocab_richness": h["signals"].get("vocabulary_richness", 0.5),
-            "char_count": len(clean_text),
-            "binoculars_score": bino_score,
-            "binoculars_ai_prob": bino_prob,
-            "fast_detectgpt_z": fast_z,
-            "fast_detectgpt_ai_prob": fast_prob,
-            "lm_perplexity": lm_perplexity,
-            "coherence_mean": coherence_mean,
-            "coherence_var": coherence_var,
-            "is_code": h["signals"].get("is_code", 0.0),
-            "identifier_entropy": h["signals"].get("identifier_entropy", 0.5),
-            "comment_ratio": h["signals"].get("comment_ratio", 0.0),
-        }
-        fusion_res = fuse_text_score(fusion_features)
-        overall = fusion_res["overall_score"]
-        conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
-        conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
-
-        if h["signals"].get("is_code") == 1.0:
-            for s in h["sentences"]:
-                if overall <= 0.08:
-                    s["ai_prob"] = min(s.get("ai_prob", 0.0), overall)
-                elif overall >= 0.88:
-                    s["ai_prob"] = max(s.get("ai_prob", 0.0), 0.88)
-
-        h["overall_score"] = round(overall, 3)
-        h["confidence_band"] = conf_band
-        h["confidence_range"] = conf_range
-        h["zone_low"] = fusion_res.get("zone_low")
-        h["zone_high"] = fusion_res.get("zone_high")
-        h["signals"]["confidence_band"] = conf_band
-        h["signals"]["confidence_range"] = conf_range
         h["signals"]["inference_mode"] = "heuristic_fallback"
         h["model_hint"] = (
             "v3.5 Heuristic-only (12 stylometric signals + LLM pattern libraries). "
             "Install torch for neural accuracy."
         )
+
+    # Ensure sentence forensics and top score are unified (no contradiction)
+    if h["signals"].get("is_code") == 1.0:
+        for s in h["sentences"]:
+            if overall <= 0.08:
+                s["ai_prob"] = min(s.get("ai_prob", 0.0), overall)
+                if "model_ai_prob" in s and s["model_ai_prob"] is not None:
+                    s["model_ai_prob"] = min(s["model_ai_prob"], overall)
+            elif overall >= 0.88:
+                s["ai_prob"] = max(s.get("ai_prob", 0.0), 0.88)
 
     # Attach code origin / verdict if code detected
     if h["signals"].get("is_code") == 1.0:

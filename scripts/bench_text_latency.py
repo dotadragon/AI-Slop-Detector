@@ -20,6 +20,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "slop" / "backend"))
@@ -51,7 +52,7 @@ def main() -> int:
     print(f"[COLD] first analyze_text() in process: {cold_total:.3f}s "
           f"(score={first_res.get('overall_score')})")
 
-    rows = []
+    rows: list[dict[str, Any]] = []
     for i, sid in enumerate(SAMPLES):
         text = (VAL / sid).read_text(encoding="utf-8", errors="ignore")
 
@@ -135,9 +136,11 @@ def main() -> int:
     from app.ml.fusion import _load_model_weights, _load_calibrator
     md = _load_model_weights("text")
     cal = _load_calibrator("text")
+    assert md is not None and cal is not None
     names = md["features"]
     row = np.array([[0.5] * len(names)], dtype=np.float32)
     n = 200
+    p: float = 0.5
     t = time.perf_counter()
     for _ in range(n):
         p = float(md["model"].predict_proba(row)[0, 1])

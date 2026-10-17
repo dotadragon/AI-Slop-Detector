@@ -17,8 +17,9 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == "scripts" else Path(__file__).resolve().parent
 sys.path.insert(0, str(root / "slop" / "backend"))
+sys.path.insert(0, str(root))
 
-from retrain_text_fusion import FUSION_PKL, VAL_DIR, evaluate  # noqa: E402
+from scripts.retrain_text_fusion import FUSION_PKL, VAL_DIR, evaluate  # noqa: E402
 
 BASELINE = root / "Model" / "fusion" / "promoted_baseline.json"
 TOLERANCE = 0.02  # allow tiny numeric jitter; real regressions exceed this

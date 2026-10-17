@@ -75,32 +75,36 @@ def _find_yunet_model_path() -> str | None:
     return None
 
 
-def _detect_faces_and_crops(frame: np.ndarray) -> list[Image.Image]:
+def _detect_faces_and_crops(frame: np.ndarray) -> list[tuple[Image.Image, tuple[int, int, int, int]]]:
     """
     ponytail: Rung 5 OpenCV YuNet face detector (2ms on CPU) with 20% spatial margin.
     Ensures facial deepfake models only evaluate faces, never squished 1080p scenes.
     Gracefully falls back to Haar cascade if YuNet ONNX model is missing.
+    Returns list of (224x224 PIL crop, (fx, fy, fw, fh) unpadded bounding box).
     """
     try:
         cv2 = _load_cv2()
         h, w, _ = frame.shape
-        crops = []
+        crops: list[tuple[Image.Image, tuple[int, int, int, int]]] = []
         yunet_path = _find_yunet_model_path()
 
         if yunet_path and hasattr(cv2, "FaceDetectorYN"):
             detector = cv2.FaceDetectorYN.create(yunet_path, "", (w, h), score_threshold=0.6, nms_threshold=0.3)
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             _, faces = detector.detect(frame_bgr)
-            if faces is not None:
-                for face in faces:
-                    fx, fy, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-                    pad_x = int(fw * 0.20)
-                    pad_y = int(fh * 0.20)
-                    x1, y1 = max(0, fx - pad_x), max(0, fy - pad_y)
-                    x2, y2 = min(w, fx + fw + pad_x), min(h, fy + fh + pad_y)
-                    cropped = frame[y1:y2, x1:x2]
+            if faces is not None and len(faces) > 0:
+                faces_sorted = sorted(faces, key=lambda f: float(f[2]) * float(f[3]), reverse=True)
+                max_area = float(faces_sorted[0][2]) * float(faces_sorted[0][3])
+                for face in faces_sorted:
+                    fw, fh = int(face[2]), int(face[3])
+                    area = float(fw * fh)
+                    conf = float(face[14]) if len(face) > 14 else 1.0
+                    if area < 0.20 * max_area or conf < 0.65 or fw < 40 or fh < 40:
+                        continue
+                    fx, fy = int(face[0]), int(face[1])
+                    cropped = frame[max(0, fy):min(h, fy + fh), max(0, fx):min(w, fx + fw)]
                     if cropped.size > 0:
-                        crops.append(Image.fromarray(cropped).resize((224, 224), Image.Resampling.LANCZOS))
+                        crops.append((Image.fromarray(cropped), (fx, fy, fw, fh)))
                 if crops:
                     return crops
 
@@ -109,19 +113,98 @@ def _detect_faces_and_crops(frame: np.ndarray) -> list[Image.Image]:
         cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
         rects = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40))
         for (x, y, fw, fh) in rects:
-            pad_x = int(fw * 0.20)
-            pad_y = int(fh * 0.20)
-            x1 = max(0, x - pad_x)
-            y1 = max(0, y - pad_y)
-            x2 = min(w, x + fw + pad_x)
-            y2 = min(h, y + fh + pad_y)
-            cropped = frame[y1:y2, x1:x2]
+            cropped = frame[max(0, y):min(h, y + fh), max(0, x):min(w, x + fw)]
             if cropped.size > 0:
-                crops.append(Image.fromarray(cropped).resize((224, 224), Image.Resampling.LANCZOS))
+                crops.append((Image.fromarray(cropped), (x, y, fw, fh)))
         return crops
     except Exception as exc:
         logger.warning("face_detection_failed", error=str(exc), exc_type=type(exc).__name__, operation="face_crop", modality="video")
         return []
+
+
+def _compute_face_swap_metrics(
+    frame: np.ndarray,
+    box: tuple[int, int, int, int],
+    dima_prob: float,
+) -> tuple[float, dict]:
+    """
+    Physical face-swap discriminator (InsightFace inswapper_128 upsample & donor seam detection).
+    Measures inner-face vs outer-head high-frequency FFT ratio, Laplacian variance ratio,
+    median-filter noise floor ratio, and boundary seam gradient.
+    """
+    try:
+        cv2 = _load_cv2()
+        fx, fy, fw, fh = box
+        h, w = frame.shape[:2]
+
+        cx, cy = fx + fw // 2, fy + fh // 2
+        in_w, in_h = int(fw * 0.55), int(fh * 0.55)
+        in_crop = frame[max(0, cy - in_h // 2):min(h, cy + in_h // 2), max(0, cx - in_w // 2):min(w, cx + in_w // 2)]
+
+        pad_x, pad_y = int(fw * 0.25), int(fh * 0.25)
+        out_x1, out_y1 = max(0, fx - pad_x), max(0, fy - pad_y)
+        out_x2, out_y2 = min(w, fx + fw + pad_x), min(h, fy + fh + pad_y)
+        out_crop = frame[out_y1:out_y2, out_x1:out_x2]
+        face_crop = frame[max(0, fy):min(h, fy + fh), max(0, fx):min(w, fx + fw)]
+
+        if in_crop.size == 0 or out_crop.size == 0 or face_crop.size == 0:
+            return round(dima_prob, 3), {}
+
+        in_gray = cv2.cvtColor(in_crop, cv2.COLOR_RGB2GRAY)
+        out_gray = cv2.cvtColor(out_crop, cv2.COLOR_RGB2GRAY)
+        f_gray = cv2.cvtColor(face_crop, cv2.COLOR_RGB2GRAY)
+
+        # 1. High frequency FFT ratio
+        f = np.fft.fft2(in_gray)
+        fshift = np.fft.fftshift(f)
+        mag = np.abs(fshift)
+        ih, iw = mag.shape
+        cy_fft, cx_fft = ih // 2, iw // 2
+        y_c, x_c = np.ogrid[:ih, :iw]
+        dist = np.sqrt((y_c - cy_fft) ** 2 + (x_c - cx_fft) ** 2)
+        max_r = min(cy_fft, cx_fft)
+        hf_mask = dist > (max_r * 0.5)
+        hf_ratio = float(np.sum(mag[hf_mask]) / max(np.sum(mag), 1e-6))
+
+        # 2. Laplacian & noise floor ratios
+        in_lap = float(cv2.Laplacian(in_gray, cv2.CV_32F).var())
+        if in_lap < 10.0:
+            return 0.15, {"in_lap": in_lap, "note": "insufficient_face_texture"}
+        out_lap = float(cv2.Laplacian(out_gray, cv2.CV_32F).var())
+        lap_r = in_lap / max(out_lap, 1e-4)
+
+        in_noise = float(np.std(in_gray.astype(float) - cv2.medianBlur(in_gray, 3).astype(float)))
+        out_noise = float(np.std(out_gray.astype(float) - cv2.medianBlur(out_gray, 3).astype(float)))
+        noise_r = in_noise / max(out_noise, 1e-4)
+
+        # 128x128 latent upsample smoothing anomaly (HF drop + lap drop + noise drop)
+        hf_drop = max(0.0, (0.245 - hf_ratio) / 0.08)
+        noise_drop = max(0.0, (0.80 - noise_r) / 0.35)
+        lap_drop = max(0.0, (0.60 - lap_r) / 0.25)
+        upsample_anomaly = 0.50 * hf_drop + 0.30 * lap_drop + 0.20 * noise_drop
+
+        # Authentic camera face preservation:
+        # Camera faces retain high frequency FFT texture (>= 0.240) and healthy sharpness ratio,
+        # or exhibit strong high-frequency facial pore/wrinkle detail (in_lap > 30.0 and lap_r >= 0.65).
+        is_authentic_face = (hf_ratio >= 0.240 and lap_r >= 0.35) or (in_lap > 40.0 and lap_r >= 0.50)
+
+        if is_authentic_face:
+            # Suppress neural false positive on real compressed video face
+            face_score = min(dima_prob * 0.15, 0.20)
+        else:
+            # Physical upsample anomaly corroborates neural detection
+            face_score = float(np.clip(0.35 * dima_prob + 0.65 * upsample_anomaly, 0.0, 1.0))
+
+        return round(face_score, 3), {
+            "hf_ratio": round(hf_ratio, 4),
+            "lap_r": round(lap_r, 4),
+            "noise_r": round(noise_r, 4),
+            "upsample_anomaly": round(upsample_anomaly, 4),
+            "is_auth": is_authentic_face,
+        }
+    except Exception as exc:
+        logger.warning("physical_face_metrics_failed", error=str(exc), exc_type=type(exc).__name__, operation="face_swap_physics", modality="video")
+        return round(dima_prob, 3), {}
 
 
 def _thumbnail(frame: np.ndarray, w: int = 160) -> str:
@@ -299,10 +382,10 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
         # Track B: Scene Forensics
         # Screen recordings have discrete UI palettes and zero camera grain; camera models are biased against them.
         if is_screen_rec:
-            scene_ai_score = 0.04
+            scene_ai_score = 0.0
             is_synthid = False
         else:
-            scene_result = _analyze_pil_image(pil_img, file_name=f"frame_{i}.png", file_path=None)
+            scene_result = _analyze_pil_image(pil_img, file_name=f"frame_{i}.png", file_path=None, is_video_frame=True)
             scene_ai_score = scene_result["overall_score"]
             sig_info = scene_result.get("digital_signature", {})
             is_synthid = sig_info.get("detected", False) and (
@@ -317,34 +400,27 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
 
         if face_crops and v_proc and v_model and v_torch:
             crop_fake_scores = []
-            for crop in face_crops:
+            for crop_img, box in face_crops:
                 try:
-                    inputs = v_proc(images=crop, return_tensors="pt")
+                    inputs = v_proc(images=crop_img, return_tensors="pt")
                     inputs = {k: v.to(v_device) for k, v in inputs.items()}
                     with v_torch.inference_mode():
                         v_logits = v_model(**inputs).logits[0]
                         v_probs = v_torch.softmax(v_logits, dim=-1).cpu().tolist()
                     # Label 1 is 'Fake' in dima806/deepfake_vs_real_image_detection
-                    crop_fake_scores.append(round(float(v_probs[1]), 3))
+                    dima_prob = float(v_probs[1])
+                    face_score, _ = _compute_face_swap_metrics(frame, box, dima_prob)
+                    crop_fake_scores.append(face_score)
                 except Exception as exc:
                     logger.warning("face_crop_inference_failed", error=str(exc), exc_type=type(exc).__name__, operation="face_deepfake_inference", modality="video", frame_index=i)
             if crop_fake_scores:
                 face_fake_prob = max(crop_fake_scores)
 
-        # Dual-Track Synthesis (Never let face-swap absence drag down strong diffusion / SynthID!)
-        if face_fake_prob is not None:
-            if face_fake_prob >= 0.50:
-                frame_ai_score = max(scene_ai_score, face_fake_prob)
-            elif scene_ai_score >= 0.50:
-                frame_ai_score = scene_ai_score
-            else:
-                frame_ai_score = round(0.50 * scene_ai_score + 0.50 * face_fake_prob, 3)
-        else:
-            frame_ai_score = scene_ai_score
+        # Dual-track synthesis: frame score evaluates frame scene forensics directly (Rule 3)
+        # When localized deepfake face manipulation is detected, frame score reflects maximum threat
+        frame_ai_score = max(scene_ai_score, face_fake_prob) if face_fake_prob is not None else scene_ai_score
 
-        # Google SynthID or Neural Diffusion Signature Anchor
-        if is_synthid:
-            frame_ai_score = max(frame_ai_score, 0.85)
+        # Rule 3 & 5: SynthID corroboration is handled exclusively in fuse_video_score()
 
         # Track C: Farnebäck Optical Flow & Motion Stability
         # ponytail: Rung 5 CPU Farnebäck flow replaces naive delta and avoids 1.5GB VRAM neural flow
@@ -359,14 +435,17 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
                 small_prev = cv2.resize(prev_gray, (320, 240))
                 small_curr = cv2.resize(gray_u8, (320, 240))
                 flow = cv2.calcOpticalFlowFarneback(small_prev, small_curr, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-                mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+                res_u = flow[..., 0] - np.median(flow[..., 0])
+                res_v = flow[..., 1] - np.median(flow[..., 1])
+                mag, _ = cv2.cartToPolar(res_u, res_v)
                 temporal_change = round(float(np.mean(mag)) / 10.0, 4)
                 temporal_flicker = round(float(np.std(mag)) / 10.0, 4)
+                curr_res = np.stack([res_u, res_v], axis=-1)
                 if prev_flow is not None:
                     # Second-derivative acceleration variance detecting generative latent jitter
-                    accel = np.sqrt((flow[..., 0] - prev_flow[..., 0]) ** 2 + (flow[..., 1] - prev_flow[..., 1]) ** 2)
+                    accel = np.sqrt((curr_res[..., 0] - prev_flow[..., 0]) ** 2 + (curr_res[..., 1] - prev_flow[..., 1]) ** 2)
                     temporal_jitter = round(float(np.mean(accel)) / 10.0, 4)
-                prev_flow = flow
+                prev_flow = curr_res
             except Exception as exc:
                 logger.warning("optical_flow_failed", error=str(exc), exc_type=type(exc).__name__, operation="farneback_flow", modality="video")
                 diff = np.abs(gray_u8.astype("float32") - prev_gray.astype("float32"))
@@ -391,9 +470,7 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
                 color_stability = 1.0
         prev_frame_rgb = frame
 
-        # Generative video often exhibits abnormal inter-frame warping / high-frequency motion jitter
-        if (temporal_flicker > 0.08 or temporal_jitter > 0.06) and frame_ai_score >= 0.40 and not is_screen_rec:
-            frame_ai_score = min(0.98, frame_ai_score + 0.06)
+        # Rule 3 & 5: Motion jitter corroboration is routed to fuse_video_score()
 
         fd = {
             "timestamp": round(ts, 2),
@@ -430,7 +507,7 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
     if scores:
         sorted_scores = sorted(scores, reverse=True)
         peak_threat = sorted_scores[0]
-        top_k = max(2, len(scores) // 2)
+        top_k = max(1, len(scores) // 4)
         top_quartile_mean = float(np.mean(sorted_scores[:top_k]))
         global_mean = float(np.mean(scores))
 
@@ -438,10 +515,17 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
         # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
         from app.ml.fusion import fuse_video_score
 
-        has_deepfake_face = any(f.get("face_deepfake_score") and f["face_deepfake_score"] >= 0.50 for f in frame_data)
-        max_face_score = max([f.get("face_deepfake_score") or 0.0 for f in frame_data] or [0.0])
+        face_scores_list = [f.get("face_deepfake_score") for f in frame_data if f.get("face_deepfake_score") is not None]
+        deepfake_frame_count = sum(1 for s in face_scores_list if s >= 0.50)
+        deepfake_frame_ratio = float(deepfake_frame_count) / max(len(face_scores_list), 1) if face_scores_list else 0.0
+        median_face_score = float(np.median(face_scores_list)) if face_scores_list else 0.0
+        max_face_score = max(face_scores_list or [0.0])
+
+        has_deepfake_face = (deepfake_frame_count >= 3 and deepfake_frame_ratio >= 0.35) or (median_face_score >= 0.50)
         avg_flicker = float(np.mean([f.get("temporal_flicker", 0.0) for f in frame_data])) if frame_data else 0.0
         avg_jitter = float(np.mean([f.get("temporal_jitter", 0.0) for f in frame_data])) if frame_data else 0.0
+        color_instability = round(1.0 - float(np.mean([f.get("color_stability", 1.0) for f in frame_data])), 4)
+        frame_score_std = round(float(np.std(scores)), 4)
 
         fusion_features = {
             "peak_threat": peak_threat,
@@ -450,10 +534,15 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
             "is_screen_rec": 1.0 if is_screen_rec else 0.0,
             "has_deepfake_face": 1.0 if has_deepfake_face else 0.0,
             "max_face_score": max_face_score,
+            "median_face_score": median_face_score,
+            "deepfake_face_ratio": deepfake_frame_ratio,
             "temporal_flicker": avg_flicker,
             "temporal_jitter": avg_jitter,
             "synthid_detected": 1.0 if any_synthid_detected else 0.0,
             "high_threat_frame_count": sum(1 for s in scores if s >= 0.60),
+            "color_instability": color_instability,
+            "frame_score_std": frame_score_std,
+            "frames_with_faces": sum(1 for f in frame_data if f["has_face"]),
         }
 
         fusion_res = fuse_video_score(fusion_features)
@@ -484,6 +573,8 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
                 "min_frame_score": round(float(min(scores)), 3) if scores else 0,
                 "frames_with_faces": sum(1 for f in frame_data if f["has_face"]),
                 "synthid_frames": sum(1 for f in frame_data if f["synthid_detected"]),
+                "deepfake_face_detected": has_deepfake_face if scores else False,
+                "max_face_deepfake_score": max_face_score if scores else 0.0,
                 "total_frames_analyzed": total,
                 "modality": modality,
                 "modality_label": "Authentic Screen Recording (Human Software UI)" if is_screen_rec else "Photographic Scene / Generative Video",

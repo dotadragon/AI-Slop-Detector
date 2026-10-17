@@ -13,9 +13,9 @@
       "size_mb": 0.0
     },
     "fusion/text.pkl": {
-      "sha256": "7b34a84decc57ddc913f3db1db82c620cf38518bc786367692cdec210af4c37f",
-      "size_bytes": 398,
-      "size_mb": 0.0
+      "sha256": "115e6914aeaa425a2dc4759581583dafc73a7a1a06104dd46b7766fe2cd4617b",
+      "size_bytes": 72871,
+      "size_mb": 0.07
     },
     "fusion/video.pkl": {
       "sha256": "4cc0b14d8d5a9d57ff47631827e12ef90e0c25f642a0223b4bd0c717545102f7",

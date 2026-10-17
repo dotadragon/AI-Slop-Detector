@@ -125,6 +125,25 @@ def load_binoculars_pair(device: str | None = None) -> tuple[Any, Any, Any, Any,
     return obs_tok, obs_model, perf_tok, perf_model, target_device
 
 
+def _unavailable_result(error: str | None = None) -> dict[str, Any]:
+    res: dict[str, Any] = {
+        "binoculars_score": None,
+        "binoculars_ai_prob": None,
+        "fast_detectgpt_z": None,
+        "fast_detectgpt_ai_prob": None,
+        "gltr_top10_frac": None,
+        "gltr_tail_frac": None,
+        "token_ll_std": None,
+        "fast_z_norm": None,
+        "observer_perplexity": None,
+        "cross_perplexity": None,
+        "available": False,
+    }
+    if error is not None:
+        res["error"] = error
+    return res
+
+
 def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
     """
     Executes live forward passes to compute Binoculars score, Fast-DetectGPT curvature z-score,
@@ -132,15 +151,7 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
     Zero mocks: executes real PyTorch inference (Rule 0).
     """
     if not text or len(text.strip()) < 30:
-        return {
-            "binoculars_score": 1.0,
-            "binoculars_ai_prob": 0.5,
-            "fast_detectgpt_z": 0.0,
-            "fast_detectgpt_ai_prob": 0.5,
-            "observer_perplexity": 50.0,
-            "cross_perplexity": 50.0,
-            "available": False,
-        }
+        return _unavailable_result()
 
     try:
         import torch
@@ -148,16 +159,7 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
         obs_tok, obs_model, perf_tok, perf_model, device = load_binoculars_pair()
     except Exception as e:
         logger.warning(f"Could not initialize Binoculars pair: {e}")
-        return {
-            "binoculars_score": 1.0,
-            "binoculars_ai_prob": 0.5,
-            "fast_detectgpt_z": 0.0,
-            "fast_detectgpt_ai_prob": 0.5,
-            "observer_perplexity": 50.0,
-            "cross_perplexity": 50.0,
-            "available": False,
-            "error": str(e),
-        }
+        return _unavailable_result(str(e))
 
     # Encode input
     enc = obs_tok(text, return_tensors="pt", truncation=True, max_length=1024)
@@ -165,15 +167,7 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
     seq_len = input_ids.shape[1]
 
     if seq_len < 4:
-        return {
-            "binoculars_score": 1.0,
-            "binoculars_ai_prob": 0.5,
-            "fast_detectgpt_z": 0.0,
-            "fast_detectgpt_ai_prob": 0.5,
-            "observer_perplexity": 50.0,
-            "cross_perplexity": 50.0,
-            "available": True,
-        }
+        return _unavailable_result()
 
     with torch.inference_mode():
         # 1. Observer forward pass
@@ -187,6 +181,7 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
 
         # --- PPL(Observer) ---
         obs_log_probs = F.log_softmax(obs_logits, dim=-1)
+
         # Gather token log likelihoods
         token_log_probs = torch.gather(obs_log_probs, dim=-1, index=target_ids.unsqueeze(-1)).squeeze(-1) # [1, T-1]
         neg_log_likelihood = -token_log_probs.mean().item()
@@ -203,18 +198,21 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
         # In Hans et al. (2024), human text has higher score (~0.90+), AI text has lower score (< 0.85)
         binoculars_score = neg_log_likelihood / max(mean_cross_entropy, 1e-6)
 
-        # Calibrate Binoculars score to AI probability in [0, 1]
-        # In our Qwen2.5 Observer/Performer pair, AI text exhibits higher cross-perpendicularity ratio (> 1.05)
-        # while human informal/code text exhibits lower ratio (< 0.95).
-        bino_logit = (binoculars_score - 1.05) / 0.10
+        # Calibrate Binoculars score to AI probability in [0, 1] using dev logistic fit
+        # P(AI) = sigmoid(-0.3256 * bino_score + 0.2971) -> lower bino => higher AI prob
+        bino_logit = -0.3256 * binoculars_score + 0.2971
         bino_ai_prob = 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, bino_logit))))
+
+        # Free performer tensors (~1.2 GB for 1024 tokens) before Fast-DetectGPT / GLTR
+        del perf_out, perf_logits, perf_probs, cross_entropy_per_pos
 
         # --- Fast-DetectGPT (Conditional Probability Curvature) ---
         # Analytical curvature using observer distribution
         # E[log p] = sum_v p(v) log p(v)
-        expected_log_p = torch.sum(F.softmax(obs_logits, dim=-1) * obs_log_probs, dim=-1) # [1, T-1]
+        obs_probs = F.softmax(obs_logits, dim=-1)
+        expected_log_p = torch.sum(obs_probs * obs_log_probs, dim=-1) # [1, T-1]
         # Var[log p] = sum_v p(v) (log p(v))^2 - (E[log p])^2
-        expected_sq_log_p = torch.sum(F.softmax(obs_logits, dim=-1) * (obs_log_probs ** 2), dim=-1) # [1, T-1]
+        expected_sq_log_p = torch.sum(obs_probs * (obs_log_probs ** 2), dim=-1) # [1, T-1]
         var_log_p = torch.clamp(expected_sq_log_p - (expected_log_p ** 2), min=1e-8) # [1, T-1]
 
         diff = token_log_probs - expected_log_p
@@ -223,16 +221,32 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
 
         fast_detectgpt_z = sum_diff / math.sqrt(max(sum_var, 1e-8))
 
-        # Calibrate Fast-DetectGPT z-score to probability
-        # In this formulation, lower z (negative) indicates AI text, positive z indicates human text
-        fast_logit = (-fast_detectgpt_z - 1.0) * 1.0
+        # Calibrate Fast-DetectGPT z-score to probability using dev logistic fit
+        # P(AI) = sigmoid(+0.1670 * fast_z - 0.2343) -> higher z => higher AI prob
+        fast_logit = 0.1670 * fast_detectgpt_z - 0.2343
         fast_ai_prob = 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, fast_logit))))
+
+        # Free Fast-DetectGPT intermediates before token rank tensor comparison
+        del obs_out, obs_logits, obs_probs, expected_log_p, expected_sq_log_p, var_log_p, diff
+
+        # --- GLTR Token-Rank & Length-Normalized Curvature Features ---
+        token_ranks = (obs_log_probs > token_log_probs.unsqueeze(-1)).sum(dim=-1).float()
+        gltr_top10_frac = float((token_ranks < 10).float().mean().item())
+        gltr_tail_frac = float((token_ranks >= 1000).float().mean().item())
+        token_ll_std = float(token_log_probs.std().item()) if seq_len > 2 else 0.0
+        fast_z_norm = float(fast_detectgpt_z / math.sqrt(max(seq_len - 1, 1)))
+
+        del token_ranks, obs_log_probs, token_log_probs
 
     return {
         "binoculars_score": round(float(binoculars_score), 4),
         "binoculars_ai_prob": round(float(bino_ai_prob), 4),
         "fast_detectgpt_z": round(float(fast_detectgpt_z), 3),
         "fast_detectgpt_ai_prob": round(float(fast_ai_prob), 4),
+        "gltr_top10_frac": round(float(gltr_top10_frac), 4),
+        "gltr_tail_frac": round(float(gltr_tail_frac), 4),
+        "token_ll_std": round(float(token_ll_std), 4),
+        "fast_z_norm": round(float(fast_z_norm), 4),
         "observer_perplexity": round(float(observer_ppl), 2),
         "cross_perplexity": round(float(cross_ppl), 2),
         "available": True,

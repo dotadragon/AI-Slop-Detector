@@ -17,12 +17,12 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == "scripts" else Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "slop" / "backend"))
 os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("SECRET_KEY", "local-verification-key-not-for-production-0123456789")
 
-VAL_DIR = ROOT / "raid_val" / "text"
+VAL_DIR = (ROOT / "raid_val" / "text") if (ROOT / "raid_val" / "text").exists() else (ROOT / "_archive" / "raid_val" / "text")
 
 FLIPPED = [
     "ai/llama_chat/llama_chat_0007.txt",
@@ -41,6 +41,8 @@ def main() -> int:
     cal = pickle.load(open(ROOT / "Model" / "fusion" / "text_calibrator.pkl", "rb"))
     tr_cache = json.loads((VAL_DIR / "_feature_cache.json").read_text(encoding="utf-8"))
     tpred = json.loads((VAL_DIR / "_transformer_preds.json").read_text(encoding="utf-8"))
+    gltr_file = VAL_DIR / "_gltr_preds.json"
+    gltr_preds = json.loads(gltr_file.read_text(encoding="utf-8")) if gltr_file.exists() else {}
 
     import app.ml.fusion as fusion
 
@@ -69,7 +71,10 @@ def main() -> int:
         Xt = np.zeros((1, len(feats)), dtype=np.float32)
         Xt[0, 0] = float(tpred.get(sid, 0.0))
         if row13 is not None:
-            Xt[0, 1:] = np.asarray(row13, dtype=np.float32)
+            Xt[0, 1:1 + len(row13)] = np.asarray(row13, dtype=np.float32)
+            if len(feats) > 1 + len(row13):
+                gltr_row = gltr_preds.get(sid, [0.5, 0.5, 0.0, 0.0])
+                Xt[0, 1 + len(row13):] = np.asarray(gltr_row, dtype=np.float32)
         raw_p = float(gbdt.predict_proba(Xp)[0, 1])
         raw_t = float(gbdt.predict_proba(Xt)[0, 1])
 

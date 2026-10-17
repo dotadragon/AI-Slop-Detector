@@ -22,7 +22,7 @@ async def hardware_telemetry():
     Returns real-time GPU/VRAM hardware allocations, lock status, and safety ceiling.
     """
     vram = get_vram_stats()
-    is_locked = bool(gpu_inference_lock._value == 0) if hasattr(gpu_inference_lock, "_value") else False
+    is_locked = (gpu_inference_lock._value == 0) if hasattr(gpu_inference_lock, "_value") else False
     return {
         "status": "online",
         "telemetry": {

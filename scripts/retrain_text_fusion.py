@@ -31,8 +31,8 @@ from app.ml.text_detector import _normalize_and_sanitize_text, _heuristic, _mode
 from app.ml.binoculars import compute_binoculars_and_curvature  # noqa: E402
 from app.ml.perplexity import compute_perplexity, compute_coherence, evict_perplexity_model  # noqa: E402
 
-TRAIN_DIR = root / "raid_train" / "text"
-VAL_DIR = root / "raid_val" / "text"
+TRAIN_DIR = (root / "raid_train" / "text") if (root / "raid_train" / "text").exists() else (root / "_archive" / "raid_train" / "text")
+VAL_DIR = (root / "raid_val" / "text") if (root / "raid_val" / "text").exists() else (root / "_archive" / "raid_val" / "text")
 TEST_DIR = root / "heldout_set" / "text"
 FUSION_PKL = root / "Model" / "fusion" / "text.pkl"
 AUDIT_LOG = root / "Model" / "fusion" / "retrain_audit_log.jsonl"
@@ -54,7 +54,7 @@ MAX_INTERCEPT_DOMINANCE = 3.0  # |intercept| must not exceed 3x the largest |wei
 
 def extract_row(text: str) -> list[float]:
     clean = _normalize_and_sanitize_text(text)
-    h = _heuristic(clean)
+    h = _heuristic(clean, _already_clean=True)
     mp = _model_prob(clean)
     b = compute_binoculars_and_curvature(clean)
     sig = h["signals"]
@@ -70,8 +70,8 @@ def extract_row(text: str) -> list[float]:
         sig.get("contraction_avoidance", 0.5),
         sig.get("zipf_deviation", 0.5),
         sig.get("vocabulary_richness", 0.5),
-        float(b.get("binoculars_ai_prob", 0.70)),
-        float(b.get("fast_detectgpt_ai_prob", 0.70)),
+        float(b["binoculars_ai_prob"]) if b.get("binoculars_ai_prob") is not None else 0.5,
+        float(b["fast_detectgpt_ai_prob"]) if b.get("fast_detectgpt_ai_prob") is not None else 0.5,
         ppl["perplexity"] if ppl["available"] and not math.isnan(ppl["perplexity"]) else 0.0,
         coh["coherence_mean"] if coh["available"] and not math.isnan(coh["coherence_mean"]) else 0.0,
         coh["coherence_var"] if coh["available"] and not math.isnan(coh["coherence_var"]) else 0.0,
@@ -292,8 +292,8 @@ def main():
     new_model = {
         "weights": {name: float(wi) for name, wi in zip(FEATURES, w)},
         "intercept": float(b),
-        "feature_mean": [float(m) for m in mu],
-        "feature_std": [float(s) for s in sd],
+        "feature_mean": [float(m) for m in mu.tolist()],
+        "feature_std": [float(s) for s in sd.tolist()],
         "features": FEATURES,
         "trained_on": {
             "source": "RAID train split (multi-offset)",

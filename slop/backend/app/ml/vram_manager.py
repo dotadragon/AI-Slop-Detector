@@ -22,6 +22,9 @@ VRAM_MAX_CEILING_BYTES = int(4.5 * 1024 * 1024 * 1024)  # Strict 4.5 GB ceiling 
 # raises TimeoutUnavailableError instead of blocking forever.
 GPU_LOCK_ACQUIRE_TIMEOUT_SECONDS = 30.0
 
+# Cross-modality VRAM auto-eviction tracker
+_last_active_modality: str | None = None
+
 
 class GPUInferenceTimeoutError(RuntimeError):
     """Raised when the serialized GPU inference lock cannot be acquired in time."""
@@ -111,6 +114,15 @@ async def serialized_gpu_inference(modality: str = "general"):
             raise GPUInferenceTimeoutError(
                 f"GPU inference lock not acquired within {GPU_LOCK_ACQUIRE_TIMEOUT_SECONDS}s (modality={modality})"
             ) from None
+
+        global _last_active_modality
+        if _last_active_modality is not None and _last_active_modality != modality:
+            logger.info(
+                "cross_modality_vram_auto_evict",
+                extra={"prev_modality": _last_active_modality, "new_modality": modality},
+            )
+            release_all_model_singletons()
+        _last_active_modality = modality
 
         check_vram_headroom()
         failed = False
@@ -214,6 +226,9 @@ def release_all_model_singletons() -> dict[str, bool]:
     whose holder is already gone is reported as False and the rest proceed.
     """
     import importlib
+
+    global _last_active_modality
+    _last_active_modality = None
 
     released: dict[str, bool] = {}
     for module_name, attr_name, action in _MODEL_SINGLETON_RELEASERS:

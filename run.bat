@@ -85,8 +85,9 @@ if not exist "%FRONTEND_DIR%\node_modules" (
 REM -------------------------------------------------------------
 REM Step 5: Start Backend Server
 REM -------------------------------------------------------------
+set "DEVICE=auto"
 echo [*] Starting Backend Server at http://127.0.0.1:8000...
-start "SLOP Backend [8000]" /d "%BACKEND_DIR%" cmd /k ""%VENV_PYTHON%" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir app"
+start "SLOP Backend [8000]" /d "%BACKEND_DIR%" cmd /k "set "DEVICE=auto" && "%VENV_PYTHON%" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir app"
 
 echo [*] Waiting for backend health check (http://127.0.0.1:8000/health)...
 set /a WAIT_COUNT=0

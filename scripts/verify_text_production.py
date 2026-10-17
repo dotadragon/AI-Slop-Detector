@@ -25,12 +25,12 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == "scripts" else Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "slop" / "backend"))
 os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("SECRET_KEY", "local-verification-key-not-for-production-0123456789")
 
-VAL_DIR = ROOT / "raid_val" / "text"
+VAL_DIR = (ROOT / "raid_val" / "text") if (ROOT / "raid_val" / "text").exists() else (ROOT / "_archive" / "raid_val" / "text")
 CALIBRATOR_PKL = ROOT / "Model" / "fusion" / "text_calibrator.pkl"
 CACHE = ROOT / "text_production_verdicts_cache.json"
 
@@ -122,28 +122,47 @@ def main() -> int:
         gaps.append(abs(float(cp) - threshold))
     print(f"min |calibrated_prob - threshold| = {min(gaps):.4f}  (rounding-safe if >> 1e-4)")
 
+    expected_m = cal.get("val_metrics", EXPECTED)
+    exp = {
+        "balanced_accuracy": round(expected_m["balanced_accuracy"], 4),
+        "ai_recall": round(expected_m["ai_recall"], 4),
+        "human_recall": round(expected_m["human_recall"], 4),
+        "macro_f1": round(expected_m["macro_f1"], 4),
+        "tp": expected_m["tp"],
+        "fn": expected_m["fn"],
+        "tn": expected_m["tn"],
+        "fp": expected_m["fp"],
+    }
+
     tp = fn = tn = fp = 0
     disagree = []
     band_mismatch = []
+    per_gen: dict[str, dict[str, int]] = {}
     for s, y in done:
+        parts = s.split("/")
+        gen = "/".join(parts[:2])
+        if gen not in per_gen:
+            per_gen[gen] = {"tp": 0, "fn": 0, "tn": 0, "fp": 0}
         rec = cache[s]
         pred = 1 if float(rec["calibrated_prob"]) >= threshold else 0
         pred_api = 1 if float(rec["overall_score"]) >= threshold else 0
         if pred != pred_api:
             disagree.append(s)
-        tp += int(pred == 1 and y == 1)
-        fn += int(pred == 0 and y == 1)
-        tn += int(pred == 0 and y == 0)
-        fp += int(pred == 1 and y == 0)
+        is_tp = int(pred == 1 and y == 1)
+        is_fn = int(pred == 0 and y == 1)
+        is_tn = int(pred == 0 and y == 0)
+        is_fp = int(pred == 1 and y == 0)
+        tp += is_tp
+        fn += is_fn
+        tn += is_tn
+        fp += is_fp
+        per_gen[gen]["tp"] += is_tp
+        per_gen[gen]["fn"] += is_fn
+        per_gen[gen]["tn"] += is_tn
+        per_gen[gen]["fp"] += is_fp
         # band must agree with the artifact edges
         b = rec["confidence_band"]
-        expect_band = (
-            "DEFINITELY_AI" if float(rec["calibrated_prob"]) >= max(threshold, cal["zone_high"])
-            else "LIKELY_AI" if float(rec["calibrated_prob"]) >= min(threshold, cal["zone_high"])
-            else "UNCERTAIN" if float(rec["calibrated_prob"]) >= cal["zone_low"]
-            else "LIKELY_HUMAN" if float(rec["calibrated_prob"]) >= cal["zone_definitely_human"]
-            else "DEFINITELY_HUMAN"
-        )
+        expect_band = fusion._band_from_artifact(float(rec["calibrated_prob"]), cal)
         if b != expect_band:
             band_mismatch.append((s, b, expect_band))
 
@@ -163,22 +182,33 @@ def main() -> int:
         "macro_f1": 0.5 * (f1_ai + f1_h),
     }
 
+    print("\nPer-Generator Production Recall:")
+    for gen, stats in sorted(per_gen.items()):
+        if gen.startswith("ai/"):
+            n_tot = stats["tp"] + stats["fn"]
+            rec = stats["tp"] / n_tot if n_tot else 0.0
+            print(f"  {gen:20s}: {stats['tp']:2d}/{n_tot:2d} ({rec:6.2%})")
+        else:
+            n_tot = stats["tn"] + stats["fp"]
+            spec = stats["tn"] / n_tot if n_tot else 0.0
+            print(f"  {gen:20s}: {stats['tn']:2d}/{n_tot:2d} ({spec:6.2%} specificity)")
+
     print()
     print(f"tp={tp} fn={fn} tn={tn} fp={fp}")
-    print(f"bacc        = {got['balanced_accuracy']*100:.2f}   (required 87.08)")
-    print(f"ai_recall   = {got['ai_recall']*100:.2f} ({tp}/{n_ai})   (required 74.17 ({EXPECTED['tp']}/120))")
-    print(f"human_recall= {got['human_recall']*100:.2f} ({tn}/{n_hu})   (required 100.00 (60/60))")
-    print(f"macro_f1    = {got['macro_f1']:.4f}   (required 0.8232)")
+    print(f"bacc        = {got['balanced_accuracy']*100:.2f}   (expected {exp['balanced_accuracy']*100:.2f})")
+    print(f"ai_recall   = {got['ai_recall']*100:.2f} ({tp}/{n_ai})   (expected {exp['ai_recall']*100:.2f} ({exp['tp']}/120))")
+    print(f"human_recall= {got['human_recall']*100:.2f} ({tn}/{n_hu})   (expected {exp['human_recall']*100:.2f} ({exp['tn']}/60))")
+    print(f"macro_f1    = {got['macro_f1']:.4f}   (expected {exp['macro_f1']:.4f})")
     print(f"api-score-vs-fusion-prob disagreements: {len(disagree)} {disagree[:5]}")
     print(f"confidence-band mismatches: {len(band_mismatch)} {band_mismatch[:5]}")
 
     checks = {
-        "balanced_accuracy": round(got["balanced_accuracy"], 4) == EXPECTED["balanced_accuracy"],
-        "ai_recall": round(got["ai_recall"], 4) == EXPECTED["ai_recall"],
-        "human_recall": round(got["human_recall"], 4) == EXPECTED["human_recall"],
-        "macro_f1": round(got["macro_f1"], 4) == EXPECTED["macro_f1"],
-        "tp": tp == EXPECTED["tp"], "fn": fn == EXPECTED["fn"],
-        "tn": tn == EXPECTED["tn"], "fp": fp == EXPECTED["fp"],
+        "balanced_accuracy": round(got["balanced_accuracy"], 4) == exp["balanced_accuracy"],
+        "ai_recall": round(got["ai_recall"], 4) == exp["ai_recall"],
+        "human_recall": round(got["human_recall"], 4) == exp["human_recall"],
+        "macro_f1": round(got["macro_f1"], 4) == exp["macro_f1"],
+        "tp": tp == exp["tp"], "fn": fn == exp["fn"],
+        "tn": tn == exp["tn"], "fp": fp == exp["fp"],
         "all_samples": len(done) == len(items),
         "bands_consistent": not band_mismatch,
     }

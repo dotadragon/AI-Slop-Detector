@@ -89,3 +89,51 @@ def test_screen_recording_detection_on_appeal_mp4():
 
     assert result["overall_score"] <= 0.10, f"Expected Human score <= 0.10 for screen recording, got {result['overall_score']}"
     assert result["signals"]["modality"] == "screen_recording"
+
+
+def test_fuse_video_score_missing_core_signals_fails_closed():
+    """Rule 2 & 3: Missing core evidence features degrade transparently without synthetic defaults."""
+    from app.ml.fusion import fuse_video_score
+
+    res = fuse_video_score({})
+    assert res["overall_score"] == 0.0
+    assert res["verdict"] == "unavailable"
+    assert "peak_threat" in res["signals_missing"]
+    assert "top_quartile_mean" in res["signals_missing"]
+    assert "global_mean" in res["signals_missing"]
+
+
+def test_fuse_video_score_natural_video_correction():
+    """Authentic camera video without deepfake faces and low threat receives natural video correction."""
+    from app.ml.fusion import fuse_video_score
+
+    features = {
+        "peak_threat": 0.25,
+        "top_quartile_mean": 0.22,
+        "global_mean": 0.20,
+        "is_screen_rec": 0.0,
+        "has_deepfake_face": 0.0,
+        "max_face_score": 0.0,
+        "temporal_flicker": 0.01,
+        "temporal_jitter": 0.01,
+        "synthid_detected": 0.0,
+        "high_threat_frame_count": 0,
+    }
+    res = fuse_video_score(features)
+    assert res["overall_score"] <= 0.20
+    assert "natural_video_correction" in res["contributions"]
+    assert res["primary_signal"] == "authentic_camera_video"
+
+
+def test_video_frame_heatmap_skipping_for_latency():
+    """Verify that is_video_frame=True skips dead per-frame heatmap PNG encoding."""
+    from PIL import Image
+    from app.ml.image_detector import _analyze_pil_image
+
+    img = Image.new("RGB", (256, 256), color=(100, 150, 200))
+    res = _analyze_pil_image(img, "frame_0.png", is_video_frame=True)
+
+    assert res["heatmap_b64"] is None
+    assert res["prnu_heatmap_b64"] is None
+    assert "gradcam_heatmap_b64" not in res
+

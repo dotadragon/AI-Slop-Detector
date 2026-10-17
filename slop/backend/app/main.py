@@ -45,7 +45,23 @@ def _verify_models_on_startup() -> None:
         if "overall_score" not in img_res:
             raise RuntimeError("Image detector failed to return overall_score")
 
-        logger.info("models_verified_on_startup", text_status="ok", image_status="ok")
+        active_dev = settings.compute_device
+        gpu_name = None
+        vram_mb = 0.0
+        if active_dev == "cuda":
+            import torch
+            gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "unknown"
+            vram_mb = round(torch.cuda.memory_allocated(0) / (1024 * 1024), 2) if torch.cuda.is_available() else 0.0
+
+        logger.info(
+            "models_verified_on_startup",
+            text_status="ok",
+            image_status="ok",
+            device=active_dev,
+            gpu=gpu_name,
+            vram_mb=vram_mb,
+        )
+        print(f"models_verified_on_startup | device={active_dev} | gpu={gpu_name} | vram_mb={vram_mb}")
     except Exception as e:
         logger.critical("model_startup_verification_failed", error=str(e))
         raise RuntimeError(f"SLOP Model Startup Verification Failed: {e}") from e

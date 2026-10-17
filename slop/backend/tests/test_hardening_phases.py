@@ -227,6 +227,46 @@ def test_metrics_render_prometheus_format():
     assert "# TYPE" in text
 
 
+@pytest.mark.asyncio
+async def test_cross_modality_vram_auto_eviction():
+    """When switching modalities under serialized_gpu_inference, release_all_model_singletons
+    must be triggered automatically, clearing resident weights and resetting tracker."""
+    from unittest.mock import patch
+    import app.ml.vram_manager as vm
+
+    vm._last_active_modality = None
+
+    with patch.object(vm, "release_all_model_singletons", wraps=vm.release_all_model_singletons) as mock_release:
+        # First request in "text" modality — initial acquisition sets _last_active_modality, no evict
+        async with vm.serialized_gpu_inference("text"):
+            pass
+        assert vm._last_active_modality == "text"
+        assert mock_release.call_count == 0
+
+        # Second request in "text" modality — same modality, no evict
+        async with vm.serialized_gpu_inference("text"):
+            pass
+        assert vm._last_active_modality == "text"
+        assert mock_release.call_count == 0
+
+        # Third request switches to "image" modality — must trigger auto-eviction
+        async with vm.serialized_gpu_inference("image"):
+            pass
+        assert vm._last_active_modality == "image"
+        assert mock_release.call_count == 1
+
+        # Fourth request switches to "audio" modality — must trigger auto-eviction again
+        async with vm.serialized_gpu_inference("audio"):
+            pass
+        assert vm._last_active_modality == "audio"
+        assert mock_release.call_count == 2
+
+    # Calling release_all_model_singletons directly must reset _last_active_modality to None
+    vm.release_all_model_singletons()
+    assert vm._last_active_modality is None
+
+
+
 # ============================================================================
 # Phase 8 — C2PA tiered trust classification
 # ============================================================================

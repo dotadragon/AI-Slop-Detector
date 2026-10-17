@@ -1,30 +1,30 @@
 {
   "train_metrics": {
-    "balanced_accuracy": 0.9995,
-    "accuracy": 0.9992,
-    "macro_f1": 0.999,
-    "ai_recall": 0.9989,
-    "human_recall": 1.0,
-    "ai_precision": 1.0,
-    "human_precision": 0.9972,
+    "balanced_accuracy": 0.9748,
+    "accuracy": 0.973,
+    "macro_f1": 0.9718,
+    "ai_recall": 0.9665,
+    "human_recall": 0.9831,
+    "ai_precision": 0.9889,
+    "human_precision": 0.9494,
     "per_gen": {
       "ai/gpt2": {
-        "tp": 162,
+        "tp": 154,
         "fp": 0,
         "tn": 0,
-        "fn": 0
+        "fn": 8
       },
       "ai/llama_chat": {
-        "tp": 150,
+        "tp": 145,
         "fp": 0,
         "tn": 0,
-        "fn": 0
+        "fn": 5
       },
       "ai/mistral": {
-        "tp": 149,
+        "tp": 146,
         "fp": 0,
         "tn": 0,
-        "fn": 1
+        "fn": 4
       },
       "ai/mistral_chat": {
         "tp": 150,
@@ -33,16 +33,16 @@
         "fn": 0
       },
       "ai/mpt": {
-        "tp": 162,
+        "tp": 149,
         "fp": 0,
         "tn": 0,
-        "fn": 0
+        "fn": 13
       },
       "ai/mpt_chat": {
-        "tp": 150,
+        "tp": 149,
         "fp": 0,
         "tn": 0,
-        "fn": 0
+        "fn": 1
       },
       "human/casual": {
         "tp": 0,
@@ -58,62 +58,68 @@
       },
       "human/forum": {
         "tp": 0,
-        "fp": 0,
-        "tn": 30,
+        "fp": 2,
+        "tn": 28,
         "fn": 0
       },
       "human/human": {
         "tp": 0,
         "fp": 0,
-        "tn": 272,
+        "tn": 252,
+        "fn": 0
+      },
+      "human/news": {
+        "tp": 0,
+        "fp": 8,
+        "tn": 242,
         "fn": 0
       }
     }
   },
   "val_metrics": {
-    "balanced_accuracy": 0.75,
-    "accuracy": 0.8278,
-    "macro_f1": 0.7753,
-    "ai_recall": 0.9833,
-    "human_recall": 0.5167,
-    "ai_precision": 0.8027,
-    "human_precision": 0.9394,
+    "balanced_accuracy": 0.8333,
+    "accuracy": 0.7944,
+    "macro_f1": 0.789,
+    "ai_recall": 0.7167,
+    "human_recall": 0.95,
+    "ai_precision": 0.9663,
+    "human_precision": 0.6264,
     "per_gen": {
       "ai/gpt2": {
-        "tp": 20,
+        "tp": 11,
         "fp": 0,
         "tn": 0,
-        "fn": 0
+        "fn": 9
       },
       "ai/llama_chat": {
-        "tp": 20,
-        "fp": 0,
-        "tn": 0,
-        "fn": 0
-      },
-      "ai/mistral": {
-        "tp": 20,
-        "fp": 0,
-        "tn": 0,
-        "fn": 0
-      },
-      "ai/mistral_chat": {
-        "tp": 20,
-        "fp": 0,
-        "tn": 0,
-        "fn": 0
-      },
-      "ai/mpt": {
         "tp": 18,
         "fp": 0,
         "tn": 0,
         "fn": 2
       },
-      "ai/mpt_chat": {
-        "tp": 20,
+      "ai/mistral": {
+        "tp": 5,
         "fp": 0,
         "tn": 0,
-        "fn": 0
+        "fn": 15
+      },
+      "ai/mistral_chat": {
+        "tp": 19,
+        "fp": 0,
+        "tn": 0,
+        "fn": 1
+      },
+      "ai/mpt": {
+        "tp": 14,
+        "fp": 0,
+        "tn": 0,
+        "fn": 6
+      },
+      "ai/mpt_chat": {
+        "tp": 19,
+        "fp": 0,
+        "tn": 0,
+        "fn": 1
       },
       "human/casual": {
         "tp": 0,
@@ -135,27 +141,31 @@
       },
       "human/human": {
         "tp": 0,
-        "fp": 28,
-        "tn": 2,
+        "fp": 2,
+        "tn": 28,
         "fn": 0
       }
     }
   },
   "feature_importances": {
-    "transformer_prob": 156,
-    "neural_prob": 15,
-    "heuristic_score": 14,
+    "transformer_prob": 122,
+    "neural_prob": 0,
+    "heuristic_score": 24,
     "llm_pattern_score": 0,
-    "transitional_entropy": 26,
-    "burstiness": 56,
-    "contraction_score": 17,
-    "zipf_deviation": 1,
-    "vocab_richness": 35,
-    "binoculars_ai_prob": 21,
-    "fast_detectgpt_ai_prob": 69,
-    "lm_perplexity": 145,
-    "coherence_mean": 25,
-    "coherence_var": 10
+    "transitional_entropy": 20,
+    "burstiness": 3,
+    "contraction_score": 75,
+    "zipf_deviation": 23,
+    "vocab_richness": 1,
+    "binoculars_ai_prob": 6,
+    "fast_detectgpt_ai_prob": 0,
+    "lm_perplexity": 17,
+    "coherence_mean": 13,
+    "coherence_var": 13,
+    "gltr_top10_frac": 23,
+    "gltr_tail_frac": 0,
+    "token_ll_std": 4,
+    "fast_z_norm": 0
   },
   "gate_passed": false
 }
