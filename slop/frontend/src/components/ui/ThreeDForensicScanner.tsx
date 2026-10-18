@@ -1,10 +1,92 @@
 import { useEffect, useRef } from "react";
 import { animate, stagger } from "animejs";
 
+type ScannerSize = "sm" | "md" | "lg";
+type AnimationHandle = { pause?: () => void };
+
 interface ThreeDForensicScannerProps {
-  size?: "sm" | "md" | "lg";
+  size?: ScannerSize;
   interactive?: boolean;
 }
+
+function createCoreNodes(core: HTMLDivElement, size: ScannerSize): HTMLDivElement[] {
+  const nodeCount = 12;
+  core.innerHTML = "";
+  const nodes: HTMLDivElement[] = [];
+  const radius = size === "sm" ? 36 : size === "lg" ? 64 : 48;
+
+  for (let index = 0; index < nodeCount; index += 1) {
+    const node = document.createElement("div");
+    node.className = "threed-core-node";
+    const phiAngle = Math.acos(-1 + (2 * index) / nodeCount);
+    const thetaAngle = Math.sqrt(nodeCount * Math.PI) * phiAngle;
+    const coordX = radius * Math.sin(phiAngle) * Math.cos(thetaAngle);
+    const coordY = radius * Math.sin(phiAngle) * Math.sin(thetaAngle);
+    const coordZ = radius * Math.cos(phiAngle);
+
+    node.style.transform = `translate3d(${coordX}px, ${coordY}px, ${coordZ}px)`;
+    core.appendChild(node);
+    nodes.push(node);
+  }
+  return nodes;
+}
+
+function initScannerAnimations(
+  ring1: HTMLDivElement,
+  ring2: HTMLDivElement,
+  ring3: HTMLDivElement,
+  laser: HTMLDivElement,
+  nodes: HTMLDivElement[],
+  size: ScannerSize
+): AnimationHandle[] {
+  const laserBounds = size === "sm" ? [-40, 40] : size === "lg" ? [-80, 80] : [-60, 60];
+  try {
+    return [
+      animate(ring1, { rotateZ: [0, 360], duration: 16000, ease: "linear", loop: true }),
+      animate(ring2, { rotateZ: [360, 0], duration: 12000, ease: "linear", loop: true }),
+      animate(ring3, { rotateZ: [0, 360], duration: 20000, ease: "linear", loop: true }),
+      animate(laser, { translateY: laserBounds, opacity: [0.3, 0.95, 0.3], duration: 2400, alternate: true, loop: true, ease: "inOutQuad" }),
+      animate(nodes, { scale: [0.7, 1.3], opacity: [0.35, 1], duration: 1800, delay: stagger(100), alternate: true, loop: true, ease: "inOutSine" }),
+    ];
+  } catch {
+    return [];
+  }
+}
+
+function setupParallaxTilt(container: HTMLDivElement, gimbal: HTMLDivElement): () => void {
+  const onMouseMove = (event: MouseEvent) => {
+    const bounds = container.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    const deltaX = (event.clientX - centerX) / (bounds.width / 2);
+    const deltaY = (event.clientY - centerY) / (bounds.height / 2);
+
+    animate(gimbal, {
+      rotateX: 25 - deltaY * 20,
+      rotateY: -20 + deltaX * 25,
+      duration: 300,
+      ease: "outQuad",
+    });
+  };
+
+  const onMouseLeave = () => {
+    animate(gimbal, { rotateX: 25, rotateY: -20, duration: 600, ease: "outCubic" });
+  };
+
+  container.addEventListener("mousemove", onMouseMove);
+  container.addEventListener("mouseleave", onMouseLeave);
+
+  return () => {
+    container.removeEventListener("mousemove", onMouseMove);
+    container.removeEventListener("mouseleave", onMouseLeave);
+  };
+}
+
+const DIMENSIONS: Record<ScannerSize, number> = {
+  sm: 170,
+  md: 220,
+  lg: 280,
+};
 
 export function ThreeDForensicScanner({
   size = "md",
@@ -19,172 +101,48 @@ export function ThreeDForensicScanner({
   const laserRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ring1 = ring1Ref.current;
-    const ring2 = ring2Ref.current;
-    const ring3 = ring3Ref.current;
-    const laser = laserRef.current;
-    const core = coreRef.current;
-    if (!ring1 || !ring2 || !ring3 || !core || !laser) return;
+    const r1 = ring1Ref.current;
+    const r2 = ring2Ref.current;
+    const r3 = ring3Ref.current;
+    const cr = coreRef.current;
+    const lr = laserRef.current;
+    if (!r1 || !r2 || !r3 || !cr || !lr) return;
 
-    // Generate 3D neural nodes inside the core
-    const nodeCount = 12;
-    core.innerHTML = "";
-    const nodes: HTMLDivElement[] = [];
-    for (let i = 0; i < nodeCount; i++) {
-      const node = document.createElement("div");
-      node.className = "threed-core-node";
-      const phi = Math.acos(-1 + (2 * i) / nodeCount);
-      const theta = Math.sqrt(nodeCount * Math.PI) * phi;
-      const r = size === "sm" ? 36 : size === "lg" ? 64 : 48;
-      const x = r * Math.sin(phi) * Math.cos(theta);
-      const y = r * Math.sin(phi) * Math.sin(theta);
-      const z = r * Math.cos(phi);
+    const nodes = createCoreNodes(cr, size);
+    const animations = initScannerAnimations(r1, r2, r3, lr, nodes, size);
 
-      node.style.transform = `translate3d(${x}px, ${y}px, ${z}px)`;
-      core.appendChild(node);
-      nodes.push(node);
-    }
-
-    // Anime.js v4: Continuous 3D Ring Rotations
-    let animRing1: any;
-    let animRing2: any;
-    let animRing3: any;
-    let animLaser: any;
-    let animNodes: any;
-
-    try {
-      animRing1 = animate(ring1, {
-        rotateZ: [0, 360],
-        duration: 16000,
-        ease: "linear",
-        loop: true,
-      });
-
-      animRing2 = animate(ring2, {
-        rotateZ: [360, 0],
-        duration: 12000,
-        ease: "linear",
-        loop: true,
-      });
-
-      animRing3 = animate(ring3, {
-        rotateZ: [0, 360],
-        duration: 20000,
-        ease: "linear",
-        loop: true,
-      });
-
-      // 3D Laser Scan Sweeper
-      animLaser = animate(laser, {
-        translateY: size === "sm" ? [-40, 40] : size === "lg" ? [-80, 80] : [-60, 60],
-        opacity: [0.3, 0.95, 0.3],
-        duration: 2400,
-        alternate: true,
-        loop: true,
-        ease: "inOutQuad",
-      });
-
-      // Depth pulsation of nodes
-      animNodes = animate(nodes, {
-        scale: [0.7, 1.3],
-        opacity: [0.35, 1],
-        duration: 1800,
-        delay: stagger(100),
-        alternate: true,
-        loop: true,
-        ease: "inOutSine",
-      });
-    } catch (err) {
-      console.warn("Anime.js 3D animation initialization fallback:", err);
-    }
-
-    // Interactive mouse tilt parallax
-    const container = containerRef.current;
-    let mouseMoveHandler: ((e: MouseEvent) => void) | undefined;
-    let mouseLeaveHandler: (() => void) | undefined;
-
-    if (interactive && container) {
-      mouseMoveHandler = (e: MouseEvent) => {
-        if (!gimbalRef.current) return;
-        const rect = container.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const deltaX = (e.clientX - centerX) / (rect.width / 2);
-        const deltaY = (e.clientY - centerY) / (rect.height / 2);
-
-        // Smooth tilt using Anime.js v4
-        animate(gimbalRef.current, {
-          rotateX: 25 - deltaY * 20,
-          rotateY: -20 + deltaX * 25,
-          duration: 300,
-          ease: "outQuad",
-        });
-      };
-
-      mouseLeaveHandler = () => {
-        if (!gimbalRef.current) return;
-        animate(gimbalRef.current, {
-          rotateX: 25,
-          rotateY: -20,
-          duration: 600,
-          ease: "outCubic",
-        });
-      };
-
-      container.addEventListener("mousemove", mouseMoveHandler);
-      container.addEventListener("mouseleave", mouseLeaveHandler);
+    let cleanupParallax: (() => void) | undefined;
+    if (interactive && containerRef.current && gimbalRef.current) {
+      cleanupParallax = setupParallaxTilt(containerRef.current, gimbalRef.current);
     }
 
     return () => {
-      if (animRing1?.pause) animRing1.pause();
-      if (animRing2?.pause) animRing2.pause();
-      if (animRing3?.pause) animRing3.pause();
-      if (animLaser?.pause) animLaser.pause();
-      if (animNodes?.pause) animNodes.pause();
-
-      if (container && mouseMoveHandler && mouseLeaveHandler) {
-        container.removeEventListener("mousemove", mouseMoveHandler);
-        container.removeEventListener("mouseleave", mouseLeaveHandler);
-      }
+      animations.forEach((handle) => handle.pause?.());
+      cleanupParallax?.();
     };
   }, [size, interactive]);
 
-  const dimension = size === "sm" ? 170 : size === "lg" ? 280 : 220;
+  const dimension = DIMENSIONS[size] ?? 220;
 
   return (
     <div
       className={`threed-scanner-root threed-scanner-${size}`}
       ref={containerRef}
-      style={{
-        width: dimension,
-        height: dimension,
-        perspective: "1000px",
-      }}
+      style={{ width: dimension, height: dimension, perspective: "1000px" }}
       aria-hidden="true"
     >
       <div className="threed-gimbal" ref={gimbalRef}>
-        {/* Orbital Ring 1: Frequency domain 3D tilt */}
         <div className="threed-ring threed-ring-outer" ref={ring1Ref}>
           <span className="threed-ring-tag">2D-DCT</span>
         </div>
-
-        {/* Orbital Ring 2: SynthID Watermark plane */}
         <div className="threed-ring threed-ring-mid" ref={ring2Ref}>
           <span className="threed-ring-tag">SYNTH_ID</span>
         </div>
-
-        {/* Orbital Ring 3: ViT Neural perimeter */}
         <div className="threed-ring threed-ring-inner" ref={ring3Ref}>
           <span className="threed-ring-tag">ViT_L16</span>
         </div>
-
-        {/* Sweeping Laser Plane */}
         <div className="threed-laser-plane" ref={laserRef} />
-
-        {/* 3D Core with animated neural vertex nodes */}
         <div className="threed-neural-core" ref={coreRef} />
-
-        {/* Central glowing pulsar */}
         <div className="threed-core-pulsar" />
       </div>
     </div>

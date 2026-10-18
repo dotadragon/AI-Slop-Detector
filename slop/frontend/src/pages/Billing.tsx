@@ -1,4 +1,3 @@
-import React from "react";
 import { CreditCard } from "lucide-react";
 import { api } from "../api/client";
 import { Button } from "../components/ui/Button";

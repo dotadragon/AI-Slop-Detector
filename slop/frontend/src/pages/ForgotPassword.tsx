@@ -1,4 +1,4 @@
-import React, { FormEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Mail } from "lucide-react";
 import { forgotPassword } from "../api/auth";
 import { Button } from "../components/ui/Button";

@@ -53,4 +53,5 @@ text_production_*.json
 *.db
 *.db-journal
 *.db-wal
+*.db-shm
 .kiro/

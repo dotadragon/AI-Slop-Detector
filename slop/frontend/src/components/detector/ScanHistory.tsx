@@ -12,15 +12,99 @@ const MODE_ICONS: Partial<Record<DetectorMode, typeof FileText>> = {
   live_image: Camera,
 };
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function getBadgeClass(score: number): string {
   if (score >= 0.72) return "badge-ai";
   if (score >= 0.42) return "badge-amber";
   return "badge-emerald";
+}
+
+function ScanHistoryItemRow({
+  entry,
+  onSelect,
+}: {
+  entry: ScanEntry;
+  onSelect: (entry: ScanEntry) => void;
+}) {
+  const Icon = MODE_ICONS[entry.mode] || FileText;
+  const pct = Math.round(entry.score * 100);
+  const color = scoreColor(entry.score);
+  const badgeClass = getBadgeClass(entry.score);
+
+  return (
+    <div
+      className="scan-history-row"
+      onClick={() => onSelect(entry)}
+      title="Click to view detailed report for this scan"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          onSelect(entry);
+        }
+      }}
+    >
+      {entry.thumbnail ? (
+        <img className="scan-history-thumb" src={entry.thumbnail} alt="" />
+      ) : (
+        <div className="scan-history-thumb-placeholder">
+          <Icon size={16} />
+        </div>
+      )}
+
+      <div className="scan-history-info">
+        <div className="scan-history-topline">
+          <span className="scan-history-mode">{entry.mode.replace("_", " ").toUpperCase()}</span>
+          {entry.title && (
+            <span className="scan-history-item-title" title={entry.title}>
+              — {entry.title}
+            </span>
+          )}
+        </div>
+        <span className="scan-history-time">{formatTime(entry.timestamp)}</span>
+      </div>
+
+      <div className="scan-history-actions">
+        <span className="scan-history-score" style={{ color }}>{pct}%</span>
+        <span className={`badge ${badgeClass}`}>{entry.label}</span>
+        <ExternalLink size={12} className="scan-history-link-icon" />
+      </div>
+    </div>
+  );
+}
+
+function ScanHistoryHeader({
+  count,
+  onClear,
+}: {
+  count: number;
+  onClear: () => void;
+}) {
+  return (
+    <div className="scan-history-header">
+      <div className="scan-history-title-row">
+        <h3>Scan History</h3>
+        <span className="scan-history-count">
+          ({count} {count === 1 ? "scan" : "scans"} cached)
+        </span>
+      </div>
+      {count > 0 && (
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost text-red"
+          onClick={onClear}
+          title="Clear all saved scans from browser cache"
+        >
+          <Trash2 size={13} />
+          <span>Clear History</span>
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function ScanHistory({
@@ -65,25 +149,7 @@ export function ScanHistory({
 
   return (
     <section className="scan-history" aria-label="Recent forensic scan history">
-      <div className="scan-history-header">
-        <div className="scan-history-title-row">
-          <h3>Scan History</h3>
-          <span className="scan-history-count">
-            ({history.length} {history.length === 1 ? "scan" : "scans"} cached)
-          </span>
-        </div>
-        {history.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost text-red"
-            onClick={handleAnimatedClear}
-            title="Clear all saved scans from browser cache"
-          >
-            <Trash2 size={13} />
-            <span>Clear History</span>
-          </button>
-        )}
-      </div>
+      <ScanHistoryHeader count={history.length} onClear={handleAnimatedClear} />
 
       {history.length === 0 ? (
         <div className="scan-history-empty">
@@ -91,58 +157,9 @@ export function ScanHistory({
         </div>
       ) : (
         <div className="scan-history-list" ref={listRef}>
-          {history.map((entry) => {
-            const Icon = MODE_ICONS[entry.mode] || FileText;
-            const pct = Math.round(entry.score * 100);
-            const color = scoreColor(entry.score);
-            const badgeClass = getBadgeClass(entry.score);
-
-            return (
-              <div
-                key={entry.id}
-                className="scan-history-row"
-                onClick={() => onSelect(entry)}
-                title="Click to view detailed report for this scan"
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    onSelect(entry);
-                  }
-                }}
-              >
-                {entry.thumbnail ? (
-                  <img className="scan-history-thumb" src={entry.thumbnail} alt="" />
-                ) : (
-                  <div className="scan-history-thumb-placeholder">
-                    <Icon size={16} />
-                  </div>
-                )}
-
-                <div className="scan-history-info">
-                  <div className="scan-history-topline">
-                    <span className="scan-history-mode">
-                      {entry.mode.replace("_", " ").toUpperCase()}
-                    </span>
-                    {entry.title && (
-                      <span className="scan-history-item-title" title={entry.title}>
-                        — {entry.title}
-                      </span>
-                    )}
-                  </div>
-                  <span className="scan-history-time">{formatTime(entry.timestamp)}</span>
-                </div>
-
-                <div className="scan-history-actions">
-                  <span className="scan-history-score" style={{ color }}>{pct}%</span>
-                  <span className={`badge ${badgeClass}`}>
-                    {entry.label}
-                  </span>
-                  <ExternalLink size={12} className="scan-history-link-icon" />
-                </div>
-              </div>
-            );
-          })}
+          {history.map((entry) => (
+            <ScanHistoryItemRow key={entry.id} entry={entry} onSelect={onSelect} />
+          ))}
         </div>
       )}
     </section>

@@ -143,15 +143,15 @@ async def get_calibration_dashboard():
     from fastapi.responses import HTMLResponse
     dashboard_path = None
     for p in Path(__file__).resolve().parents:
-        cand = p / "artifacts" / "eval_dashboard.html"
+        cand = p / "dashboard" / "eval_dashboard.html"
         if not cand.exists():
-            cand = p / "_archive" / "dashboard" / "eval_dashboard.html"
-        if not cand.exists():
-            cand = p / "dashboard" / "eval_dashboard.html"
+            cand = p / "artifacts" / "eval_dashboard.html"
         if cand.exists():
             dashboard_path = cand
             break
-        gen_script = p / "generate_dashboard.py"
+        gen_script = p / "scripts" / "generate_dashboard.py"
+        if not gen_script.exists():
+            gen_script = p / "generate_dashboard.py"
         if gen_script.exists():
             import subprocess
             subprocess.run([sys.executable, str(gen_script)], check=False)
@@ -161,4 +161,19 @@ async def get_calibration_dashboard():
     if dashboard_path and dashboard_path.exists():
         return HTMLResponse(content=dashboard_path.read_text(encoding="utf-8"), status_code=200)
     return HTMLResponse(content="<html><body><h2>Calibration dashboard not generated yet.</h2></body></html>", status_code=404)
+
+
+@router.get("/calibration-report")
+async def get_calibration_report():
+    """Return heldout_report.json metrics as JSON."""
+    import json
+    for p in Path(__file__).resolve().parents:
+        cand = p / "heldout_report.json"
+        if cand.exists():
+            try:
+                return json.loads(cand.read_text(encoding="utf-8"))
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to parse heldout_report.json: {e}")
+    raise HTTPException(status_code=404, detail="heldout_report.json not found")
+
 

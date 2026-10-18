@@ -9,10 +9,12 @@ type AuthState = {
   logout: () => void;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: null,
   setAccessToken: (accessToken) => set({ accessToken }),
   setUser: (user) => set({ user }),
   logout: () => set({ accessToken: null, user: null })
 }));
+
+export { useAuthStore };

@@ -1,4 +1,3 @@
-import React from "react";
 import { useSeo } from "../hooks/useSeo";
 
 export function Help() {

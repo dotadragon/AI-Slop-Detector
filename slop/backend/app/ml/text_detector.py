@@ -1188,11 +1188,15 @@ def _model_prob(text: str) -> float | None:
 
 
 def _model_sentence_probs(sentences: list[str]) -> list[float | None]:
-    """Per-sentence AI probability."""
+    """Per-sentence AI probability.
+    Prefers fine-tuned RAID transformer when available, falling back to base model."""
     try:
-        tok, model, torch, _, device = _load_model()
+        tok, model, torch, device = _load_fine_tuned_model()
     except _ModelUnavailable:
-        return [None] * len(sentences)
+        try:
+            tok, model, torch, _, device = _load_model()
+        except _ModelUnavailable:
+            return [None] * len(sentences)
 
     labels = {int(k): v.lower() for k, v in model.config.id2label.items()}
     fake_idx = next((i for i, l in labels.items() if any(t in l for t in ("fake", "ai", "artificial", "synthetic", "chatgpt"))), 0)
@@ -1314,6 +1318,39 @@ def analyze_text(text: str) -> dict:
     char_count = len(text.strip())
     heuristic_score = h["overall_score"]
 
+    # Per-sentence neural scores (prefer fine-tuned RAID transformer via _model_sentence_probs)
+    ref_prob = transformer_prob if transformer_prob is not None else mp
+    if ref_prob is not None:
+        if len(h["sentences"]) == 1 and len(clean_text) <= 1500:
+            sent_probs = [round(ref_prob, 3)]
+        else:
+            sent_probs = _model_sentence_probs([s["text"] for s in h["sentences"]])
+        for s, sp in zip(h["sentences"], sent_probs):
+            if sp is not None:
+                s["model_ai_prob"] = sp
+                if s.get("pattern_matched") and llm_pattern_score >= 0.70:
+                    s["ai_prob"] = max(s["ai_prob"], 0.94)
+                else:
+                    s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
+
+    # Compute sentence-level distribution metrics from h["sentences"] (for substantive sentences with >= 6 words)
+    substantive_sents = [s for s in h["sentences"] if len(s["text"].split()) >= 6]
+    n_substantive = len(substantive_sents)
+    if n_substantive > 0:
+        sub_probs = [float(s.get("ai_prob", 0.0)) for s in substantive_sents]
+        ai_sentence_fraction = round(sum(1 for p in sub_probs if p >= 0.70) / n_substantive, 4)
+        human_sentence_fraction = round(sum(1 for p in sub_probs if p <= 0.30) / n_substantive, 4)
+        sentence_prob_std = round(float(pstdev(sub_probs)), 4) if n_substantive > 1 else 0.0
+    else:
+        ai_sentence_fraction = 0.0
+        human_sentence_fraction = 0.0
+        sentence_prob_std = 0.0
+
+    h["signals"]["ai_sentence_fraction"] = ai_sentence_fraction
+    h["signals"]["human_sentence_fraction"] = human_sentence_fraction
+    h["signals"]["sentence_prob_std"] = sentence_prob_std
+    h["signals"]["substantive_sentence_count"] = n_substantive
+
     fusion_features = {
         "transformer_prob": transformer_prob if transformer_prob is not None else (mp if mp is not None else 0.0),
         "neural_prob": mp,
@@ -1339,6 +1376,10 @@ def analyze_text(text: str) -> dict:
         "is_code": h["signals"].get("is_code", 0.0),
         "identifier_entropy": h["signals"].get("identifier_entropy", 0.5),
         "comment_ratio": h["signals"].get("comment_ratio", 0.0),
+        "ai_sentence_fraction": ai_sentence_fraction,
+        "human_sentence_fraction": human_sentence_fraction,
+        "sentence_prob_std": sentence_prob_std,
+        "substantive_sentence_count": n_substantive,
     }
 
     # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
@@ -1369,19 +1410,22 @@ def analyze_text(text: str) -> dict:
     h["signals"]["confidence_band"] = conf_band
     h["signals"]["confidence_range"] = conf_range
 
-    if mp is not None:
-        # Per-sentence neural scores
-        if len(h["sentences"]) == 1 and len(clean_text) <= 1500:
-            sent_probs = [round(mp, 3)]
+    content_composition = fusion_res.get("content_composition")
+    if not content_composition:
+        if (
+            n_substantive >= 4
+            and ai_sentence_fraction >= 0.25
+            and human_sentence_fraction >= 0.25
+            and sentence_prob_std >= 0.22
+        ):
+            content_composition = "MIXED_AI_HUMAN"
         else:
-            sent_probs = _model_sentence_probs([s["text"] for s in h["sentences"]])
-        for s, sp in zip(h["sentences"], sent_probs):
-            if sp is not None:
-                s["model_ai_prob"] = sp
-                if s.get("pattern_matched") and llm_pattern_score >= 0.70:
-                    s["ai_prob"] = max(s["ai_prob"], 0.94)
-                else:
-                    s["ai_prob"] = round(0.55 * sp + 0.45 * s["ai_prob"], 3)
+            is_ai = (fusion_res.get("verdict") == "AI") if fusion_res.get("verdict") is not None else (overall >= 0.50)
+            content_composition = "PURE_AI" if is_ai else "PURE_HUMAN"
+    h["signals"]["content_composition"] = content_composition
+    h["content_composition"] = content_composition
+
+    if mp is not None:
 
         # Determine base blend weights by text length
         if char_count < 200:

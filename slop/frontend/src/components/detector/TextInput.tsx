@@ -1,114 +1,125 @@
-import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
+import { useState } from "react";
 import { ScanText, FileUp, FileText, X } from "lucide-react";
 import { Button } from "../ui/Button";
+import { useFileDrop } from "../../hooks/useFileDrop";
 
 type TextInputProps = {
   onAnalyze: (text: string) => void;
   onUploadFile?: (file: File) => void;
-  loading: boolean;
+  isSubmitting?: boolean;
 };
 
-export function TextInput({ onAnalyze, onUploadFile, loading }: TextInputProps) {
+function TextStatusChip({
+  file,
+  onClear,
+  disabled,
+}: {
+  file: File;
+  onClear: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="text-status-chip">
+      <div className="text-status-info">
+        <FileText size={16} className="text-status-icon" />
+        <div className="text-status-label-wrap">
+          <span className="text-status-filename">{file.name}</span>
+          <span className="text-status-filesize">({(file.size / 1024).toFixed(1)} KB)</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        disabled={disabled}
+        className="text-status-clear-btn"
+        title="Clear selected document"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+function TextPanelActions({
+  onTriggerUpload,
+  textLength,
+  onAnalyze,
+  disabled,
+  isLoading,
+  hasContent,
+}: {
+  onTriggerUpload: () => void;
+  textLength: number;
+  onAnalyze: () => void;
+  disabled: boolean;
+  isLoading: boolean;
+  hasContent: boolean;
+}) {
+  return (
+    <div className="panel-actions text-panel-actions">
+      <div className="text-panel-action-left">
+        <button
+          type="button"
+          className="btn btn-secondary text-upload-btn"
+          onClick={onTriggerUpload}
+          disabled={disabled}
+        >
+          <FileUp size={14} />
+          <span>Upload Document</span>
+        </button>
+        <span className="text-panel-counter">{textLength.toLocaleString()} / 50,000</span>
+      </div>
+      <Button
+        icon={<ScanText size={16} />}
+        disabled={!hasContent || disabled}
+        onClick={onAnalyze}
+      >
+        {isLoading ? "Analyzing..." : "Analyze Text"}
+      </Button>
+    </div>
+  );
+}
+
+export function TextInput({ onAnalyze, onUploadFile, isSubmitting }: TextInputProps) {
   const [text, setText] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDragOver = (e: DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!loading) setIsDragActive(true);
-  };
-
-  const handleDragLeave = (e: DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-    if (loading) return;
-    const file = e.dataTransfer.files?.[0];
-    if (file && onUploadFile) {
-      setSelectedFile(file);
-      onUploadFile(file);
-    }
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onUploadFile) {
-      setSelectedFile(file);
-      onUploadFile(file);
-    }
-  };
+  const textDrop = useFileDrop({
+    onDropFile: (file) => {
+      if (onUploadFile) {
+        setSelectedFile(file);
+        onUploadFile(file);
+      }
+    },
+    disabled: isSubmitting,
+  });
 
   const handleClearFile = () => {
     setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (textDrop.fileInputRef.current) textDrop.fileInputRef.current.value = "";
   };
+
+  const placeholderText = selectedFile
+    ? `Analyzing ${selectedFile.name}...`
+    : "Paste suspect text or drop a document (.PDF, .DOCX, .TXT, .MD)...";
 
   return (
     <section
-      className={`input-panel text-input-panel ${isDragActive ? "active" : ""}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      className={`input-panel text-input-panel ${textDrop.isDragActive ? "active" : ""}`}
+      onDragOver={textDrop.handleDragOver}
+      onDragLeave={textDrop.handleDragLeave}
+      onDrop={textDrop.handleDrop}
     >
       <input
-        ref={fileInputRef}
+        ref={textDrop.fileInputRef}
         type="file"
         accept=".txt,.pdf,.docx,.doc,.md,.rtf,.csv"
-        style={{ display: "none" }}
-        onChange={handleFileChange}
+        className="sr-only"
+        onChange={textDrop.handleInputChange}
       />
 
-      {/* Uploaded Document Status Chip */}
       {selectedFile && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "color-mix(in srgb, var(--accent) 10%, var(--bg-card))",
-            border: "1px solid color-mix(in srgb, var(--accent) 34%, var(--border-card))",
-            borderRadius: "6px",
-            padding: "8px 12px",
-            marginBottom: "12px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-            <FileText size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
-            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", overflow: "hidden" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {selectedFile.name}
-              </span>
-              <span style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "monospace", flexShrink: 0 }}>
-                ({(selectedFile.size / 1024).toFixed(1)} KB)
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleClearFile}
-            disabled={loading}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--text-muted)",
-              cursor: "pointer",
-              padding: "2px",
-              display: "flex",
-              alignItems: "center",
-            }}
-            title="Clear selected document"
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <TextStatusChip file={selectedFile} onClear={handleClearFile} disabled={Boolean(isSubmitting)} />
       )}
 
       <textarea
@@ -118,34 +129,19 @@ export function TextInput({ onAnalyze, onUploadFile, loading }: TextInputProps) 
           if (selectedFile) setSelectedFile(null);
         }}
         maxLength={50000}
-        placeholder={selectedFile ? `Analyzing ${selectedFile.name}...` : "Paste suspect text or drop a document (.PDF, .DOCX, .TXT, .MD)..."}
+        placeholder={placeholderText}
         aria-label="Suspect text to analyze for AI generation"
-        disabled={loading}
+        disabled={isSubmitting}
       />
-      <div className="panel-actions" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
-            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px" }}
-          >
-            <FileUp size={14} />
-            <span>Upload Document</span>
-          </button>
-          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-            {text.length.toLocaleString()} / 50,000
-          </span>
-        </div>
-        <Button
-          icon={<ScanText size={16} />}
-          disabled={(!text.trim() && !selectedFile) || loading}
-          onClick={() => onAnalyze(text)}
-        >
-          {loading ? "Analyzing..." : "Analyze Text"}
-        </Button>
-      </div>
+
+      <TextPanelActions
+        onTriggerUpload={textDrop.triggerSelect}
+        textLength={text.length}
+        onAnalyze={() => onAnalyze(text)}
+        disabled={Boolean(isSubmitting)}
+        isLoading={Boolean(isSubmitting)}
+        hasContent={Boolean(text.trim() || selectedFile)}
+      />
     </section>
   );
 }

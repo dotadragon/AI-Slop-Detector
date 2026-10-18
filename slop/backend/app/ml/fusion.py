@@ -523,6 +523,17 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
         final_score = round(_clamp01(score), 3)
         final_range = code_rng if code_verdict is not None else _confidence_range(final_score, disagreement)
 
+        ai_sent_frac = float(features.get("ai_sentence_fraction", 0.0))
+        hu_sent_frac = float(features.get("human_sentence_fraction", 0.0))
+        sent_std = float(features.get("sentence_prob_std", 0.0))
+        sub_count = int(features.get("substantive_sentence_count", features.get("sentence_count", 0)))
+
+        if sub_count >= 4 and ai_sent_frac >= 0.25 and hu_sent_frac >= 0.25 and sent_std >= 0.22:
+            content_composition = "MIXED_AI_HUMAN"
+        else:
+            is_ai_verdict = (verdict == "AI") if verdict is not None else (final_score >= 0.50)
+            content_composition = "PURE_AI" if is_ai_verdict else "PURE_HUMAN"
+
         return {
             "overall_score": final_score,
             "confidence_band": conf_band,
@@ -538,6 +549,7 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
                 None if zone_definitely_human is None else round(zone_definitely_human, 4)
             ),
             "verdict": verdict if (platt is not None and not missing) else None,
+            "content_composition": content_composition,
             "model_path": "gbdt_platt_v2",
             "signals_missing": signals_missing,
         }
@@ -630,12 +642,23 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
 
     final_score = round(_clamp01(score), 3)
 
+    ai_sent_frac = float(features.get("ai_sentence_fraction", 0.0))
+    hu_sent_frac = float(features.get("human_sentence_fraction", 0.0))
+    sent_std = float(features.get("sentence_prob_std", 0.0))
+    sub_count = int(features.get("substantive_sentence_count", features.get("sentence_count", 0)))
+
+    if sub_count >= 4 and ai_sent_frac >= 0.25 and hu_sent_frac >= 0.25 and sent_std >= 0.22:
+        content_composition = "MIXED_AI_HUMAN"
+    else:
+        content_composition = "PURE_AI" if final_score >= 0.50 else "PURE_HUMAN"
+
     return {
         "overall_score": final_score,
         "confidence_band": conf_band,
         "confidence_range": conf_range,
         "primary_signal": "code_forensics_ast_identifier" if code_verdict is not None else ("roberta_neural_classifier" if (neural_prob is not None and neural_prob >= 0.50) else "stylometric_forensics"),
         "contributions": contributions,
+        "content_composition": content_composition,
         "model_path": "legacy_logistic_fallback",
         "signals_missing": missing_zero_shot,
     }

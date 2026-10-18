@@ -17,6 +17,8 @@ export interface ScanEntry {
   result: DetectionResult;
 }
 
+export type ScanHistoryEntry = ScanEntry;
+
 function sanitizeResultForHistory(result: DetectionResult): DetectionResult {
   // Strip multi-megabyte base64 heatmaps to prevent localStorage QuotaExceededError
   const { heatmap_b64, gradcam_heatmap_b64, ...rest } = result;

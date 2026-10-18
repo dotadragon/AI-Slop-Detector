@@ -1,243 +1,66 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { FlaskConical } from "lucide-react";
 import type { DetectorMode, DetectionResult } from "../types";
-import { ImageUpload } from "../components/detector/ImageUpload";
-import { LiveImageCapture } from "../components/detector/LiveImageCapture";
 import { ResultPanel } from "../components/detector/ResultPanel";
 import { ScanHistory } from "../components/detector/ScanHistory";
 import { TabBar } from "../components/detector/TabBar";
-import { TextInput } from "../components/detector/TextInput";
-import { VideoUpload } from "../components/detector/VideoUpload";
-import { DocumentUpload } from "../components/detector/DocumentUpload";
-import { AudioUpload } from "../components/detector/AudioUpload";
+import { DetectorInputSwitcher } from "../components/detector/DetectorModalityPanes";
 import { useDetection } from "../hooks/useDetection";
 import { useScanHistory } from "../hooks/useScanHistory";
 import { useSeo } from "../hooks/useSeo";
-import { track } from "../utils/analytics";
 
-function ExperimentalBanner({ label }: { label: string }) {
-  return (
-    <div className="experimental-heldout-banner" role="note" aria-label={`Experimental ${label} detection status`}>
-      <FlaskConical size={16} className="experimental-banner-icon" />
-      <div className="experimental-banner-text">
-        <span className="experimental-banner-badge">Experimental Beta — Results For Evaluation Only</span>
-        <span className="experimental-banner-desc">Modality model under active validation. Results intended for empirical testing and evaluation.</span>
-      </div>
-    </div>
-  );
+const VALID_MODES: DetectorMode[] = ["text", "image", "video", "live_image", "document", "audio"];
+
+function resolveInitialMode(param: string | null): DetectorMode {
+  return param && VALID_MODES.includes(param as DetectorMode) ? (param as DetectorMode) : "text";
 }
 
-function AccuracyBanner({ badge, desc }: { badge: string; desc: string }) {
-  return (
-    <div className="experimental-heldout-banner" role="note" aria-label={badge}>
-      <FlaskConical size={16} className="experimental-banner-icon" />
-      <div className="experimental-banner-text">
-        <span className="experimental-banner-badge">{badge}</span>
-        <span className="experimental-banner-desc">{desc}</span>
-      </div>
-    </div>
-  );
+function getDetectionState(detection: ReturnType<typeof useDetection>) {
+  const operations = [
+    detection.text,
+    detection.textUpload,
+    detection.image,
+    detection.video,
+    detection.document,
+    detection.audio,
+  ];
+
+  const isPending = operations.some((op) => op.isPending);
+  const activeError = operations.find((op) => Boolean(op.error))?.error as Error | undefined;
+
+  return { isPending, errorMessage: activeError?.message };
 }
 
 export function Detector() {
   useSeo({
     title: "Detector — SLOP",
     description: "Analyze suspicious text, image, video, document, and audio samples with SLOP AI digital forensics.",
-    path: "/detector"
+    path: "/detector",
   });
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab") as DetectorMode | null;
-  const initialMode: DetectorMode =
-    tabParam && ["text", "image", "video", "live_image", "document", "audio"].includes(tabParam)
-      ? tabParam
-      : "text";
-
-  const [mode, setMode] = useState<DetectorMode>(initialMode);
+  const [mode, setMode] = useState<DetectorMode>(() => resolveInitialMode(searchParams.get("tab")));
   const [result, setResult] = useState<DetectionResult>();
   const detection = useDetection();
   const { history, addScan, clearHistory } = useScanHistory();
   const lastFileRef = useRef<File | undefined>();
-  const loading =
-    detection.text.isPending ||
-    detection.textUpload.isPending ||
-    detection.image.isPending ||
-    detection.video.isPending ||
-    detection.document.isPending ||
-    detection.audio.isPending;
+  const { isPending, errorMessage } = getDetectionState(detection);
 
-  const errorMessage =
-    (detection.image.error as Error)?.message ||
-    (detection.text.error as Error)?.message ||
-    (detection.textUpload.error as Error)?.message ||
-    (detection.video.error as Error)?.message ||
-    (detection.document.error as Error)?.message ||
-    (detection.audio.error as Error)?.message;
-
-  // Synchronize tab mode if URL query param changes
+  const tabParam = searchParams.get("tab");
   useEffect(() => {
-    if (tabParam && ["text", "image", "video", "live_image", "document", "audio"].includes(tabParam) && tabParam !== mode) {
-      setMode(tabParam);
+    if (tabParam && VALID_MODES.includes(tabParam as DetectorMode) && tabParam !== mode) {
+      setMode(tabParam as DetectorMode);
       setResult(undefined);
     }
   }, [tabParam, mode]);
 
-  const activeInput = useMemo(() => {
-    if (mode === "image") {
-      return (
-        <div className="image-mode-view">
-          <AccuracyBanner
-            badge="Held-out Accuracy: 75.7% (n=52, SDXL)"
-            desc="ECE 0.39 — treat scores as approximate. Real-world out-of-distribution performance varies."
-          />
-          <ImageUpload
-            loading={loading}
-            result={result}
-            onFile={(file) => {
-              lastFileRef.current = file;
-              track("scan_started", { mode: "image" });
-              detection.image.mutate(file, {
-                onSuccess: (data) => {
-                  const resWithJob = data.result ? { ...data.result, job_id: data.job_id } : undefined;
-                  setResult(resWithJob);
-                  if (resWithJob) addScan("image", resWithJob, file);
-                  track("scan_completed", { mode: "image", score: resWithJob?.overall_score });
-                },
-              });
-            }}
-          />
-        </div>
-      );
-    }
-    if (mode === "live_image") {
-      return (
-        <LiveImageCapture
-          onResult={(nextResult) => {
-            setResult(nextResult);
-            addScan("live_image", nextResult);
-            track("scan_completed", { mode: "live_image", score: nextResult.overall_score });
-          }}
-        />
-      );
-    }
-    if (mode === "video") {
-      return (
-        <div className="video-mode-view">
-          <AccuracyBanner
-            badge="Held-out Accuracy: 50% (Limited Training Data)"
-            desc="Results are experimental. Video modality has limited training data — do not use for binary verdicts."
-          />
-          <VideoUpload
-            loading={loading}
-            onFile={(file) => {
-              lastFileRef.current = file;
-              track("scan_started", { mode: "video" });
-              detection.video.mutate(file, {
-                onSuccess: (data) => {
-                  const resWithJob = data.result ? { ...data.result, job_id: data.job_id } : undefined;
-                  setResult(resWithJob);
-                  if (resWithJob) addScan("video", resWithJob, file);
-                  track("scan_completed", { mode: "video", score: resWithJob?.overall_score });
-                },
-              });
-            }}
-            onStreamResult={(streamResult) => {
-              setResult(streamResult);
-              addScan("video", streamResult, lastFileRef.current);
-              track("scan_completed", { mode: "video_stream", score: streamResult.overall_score });
-            }}
-          />
-        </div>
-      );
-    }
-    if (mode === "document") {
-      return (
-        <div className="document-mode-view">
-          <AccuracyBanner
-            badge="Experimental — AUC 0.868 (n=24 containers)"
-            desc="Validated on 24 document containers. Small sample size — treat results as indicative, not conclusive."
-          />
-          <DocumentUpload
-            loading={loading}
-            result={result}
-            onFile={(file) => {
-              lastFileRef.current = file;
-              track("scan_started", { mode: "document" });
-              detection.document.mutate(file, {
-                onSuccess: (data) => {
-                  const resWithJob = data.result ? { ...data.result, job_id: data.job_id } : undefined;
-                  setResult(resWithJob);
-                  if (resWithJob) addScan("document", resWithJob, file);
-                  track("scan_completed", { mode: "document", score: resWithJob?.overall_score });
-                },
-              });
-            }}
-          />
-        </div>
-      );
-    }
-    if (mode === "audio") {
-      return (
-        <div className="audio-mode-view">
-          <AccuracyBanner
-            badge="Temporarily Disabled — Under Revalidation"
-            desc="Audio detection is under active revalidation. Scores shown are not yet production-ready."
-          />
-          <AudioUpload
-            loading={loading}
-            result={result}
-            onFile={(file) => {
-              lastFileRef.current = file;
-              track("scan_started", { mode: "audio" });
-              detection.audio.mutate(file, {
-                onSuccess: (data) => {
-                  const resWithJob = data.result ? { ...data.result, job_id: data.job_id } : undefined;
-                  setResult(resWithJob);
-                  if (resWithJob) addScan("audio", resWithJob, file);
-                  track("scan_completed", { mode: "audio", score: resWithJob?.overall_score });
-                },
-              });
-            }}
-          />
-        </div>
-      );
-    }
-    return (
-      <>
-        <AccuracyBanner
-          badge="Held-out Accuracy: ~34% AI Recall at Production Threshold"
-          desc="Results show confidence bands, not binary verdicts. Avoid using scores alone to reach conclusions."
-        />
-        <TextInput
-        loading={loading}
-        onAnalyze={(text) => {
-          track("scan_started", { mode: "text", chars: text.length });
-          detection.text.mutate(text, {
-            onSuccess: (data) => {
-              const resWithJob = data.result ? { ...data.result, job_id: data.job_id } : undefined;
-              setResult(resWithJob);
-              if (resWithJob) addScan("text", resWithJob, undefined, text);
-              track("scan_completed", { mode: "text", score: resWithJob?.overall_score });
-            },
-          });
-        }}
-        onUploadFile={(file) => {
-          lastFileRef.current = file;
-          track("scan_started", { mode: "text_upload", file: file.name });
-          detection.textUpload.mutate(file, {
-            onSuccess: (data) => {
-              const resWithJob = data.result ? { ...data.result, job_id: data.job_id } : undefined;
-              setResult(resWithJob);
-              if (resWithJob) addScan("text", resWithJob, file);
-              track("scan_completed", { mode: "text_upload", score: resWithJob?.overall_score });
-            },
-          });
-        }}
-      />
-      </>
-    );
-  }, [mode, loading, result, detection.image, detection.text, detection.textUpload, detection.video, detection.document, detection.audio, addScan]);
+  const handleSuccessResult = useCallback(
+    (scanMode: DetectorMode, scanResult: DetectionResult, file?: File, text?: string) => {
+      setResult(scanResult);
+      addScan(scanMode, scanResult, file, text);
+    },
+    [addScan]
+  );
 
   return (
     <main className="workspace">
@@ -252,10 +75,17 @@ export function Detector() {
       />
       <div className="detector-grid">
         <div className="detector-left-pane">
-          {activeInput}
+          <DetectorInputSwitcher
+            mode={mode}
+            loading={isPending}
+            result={result}
+            onSuccessResult={handleSuccessResult}
+            lastFileRef={lastFileRef}
+            detection={detection}
+          />
         </div>
         <div className="detector-right-pane">
-          <ResultPanel result={result} loading={loading} error={errorMessage} modality={mode} />
+          <ResultPanel detectionResult={result} isAnalyzing={isPending} error={errorMessage} modality={mode} />
         </div>
       </div>
       <ScanHistory

@@ -31,37 +31,44 @@ export type VideoStreamEvent = {
   error?: string;
 };
 
-/**
- * Upload a video and subscribe to real-time SSE progress updates.
- * Each frame analysis result is streamed back as it completes.
- */
-export async function uploadVideoStream(
-  file: File,
-  onEvent: (event: VideoStreamEvent) => void,
-): Promise<void> {
-  const form = new FormData();
-  form.append("file", file);
-
-  const baseURL = import.meta.env.VITE_API_URL ?? "/api/v1";
-
-  // Fetch CSRF token if not present in cookie
+async function getCsrfHeader(baseURL: string): Promise<Record<string, string>> {
   let csrf = getCookie("csrf_token");
   if (!csrf) {
     try {
       const res = await fetch(`${baseURL}/auth/csrf`, { credentials: "include" });
       if (res.ok) {
-        const d = await res.json();
-        if (d.csrf_token) csrf = d.csrf_token;
+        const csrfData = await res.json();
+        if (csrfData.csrf_token) csrf = csrfData.csrf_token;
       }
     } catch {
-      // ignore
+      // Ignore csrf retrieval error
     }
   }
+  return csrf ? { "X-CSRF-Token": csrf } : {};
+}
 
-  const headers: Record<string, string> = {};
-  if (csrf) {
-    headers["X-CSRF-Token"] = csrf;
+function processSseLines(lines: string[], onEvent: (event: VideoStreamEvent) => void) {
+  for (const line of lines) {
+    if (line.startsWith("data: ")) {
+      try {
+        const event = JSON.parse(line.slice(6)) as VideoStreamEvent;
+        onEvent(event);
+      } catch {
+        // Skip malformed SSE lines
+      }
+    }
   }
+}
+
+export async function uploadVideoStream(
+  file: File,
+  onEvent: (event: VideoStreamEvent) => void
+): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const baseURL = import.meta.env.VITE_API_URL ?? "/api/v1";
+  const headers = await getCsrfHeader(baseURL);
 
   const response = await fetch(`${baseURL}/video/upload-stream`, {
     method: "POST",
@@ -83,20 +90,8 @@ export async function uploadVideoStream(
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-
-    // Parse SSE events from buffer
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          const event = JSON.parse(line.slice(6)) as VideoStreamEvent;
-          onEvent(event);
-        } catch {
-          // Skip malformed events
-        }
-      }
-    }
+    processSseLines(lines, onEvent);
   }
 }

@@ -805,22 +805,22 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     )
 
     if c2pa["verified"]:
-        hint = "✓ C2PA verified provenance. "
+        hint = "✓ C2PA verified provenance manifest."
     elif is_diagram and overall <= 0.20:
         hint = "Authentic technical diagram / UI graphic layout. Discrete orthogonal vectors and typography verified."
     elif is_real_camera and overall <= 0.20:
         hint = "Authentic camera photograph verified via CMOS Bayer CFA sensor fingerprint and natural optical noise."
     elif is_anime_ai and overall >= 0.80:
-        hint = "Detected AI anime / stylized neural diffusion model."
+        hint = "Synthetic generative diffusion features detected in stylized anime textures."
     elif best_neural is not None and best_neural >= 0.70:
-        hint = f"Vision Transformer ensemble detected synthetic generative content ({int(overall * 100)}% AI probability)."
+        hint = "Multi-crop Swin & CLIP consensus with 2D-FFT and PRNU sensor analysis."
     elif best_neural is not None and best_neural <= 0.25:
-        hint = f"Vision Transformer verified authentic content ({int((1 - overall) * 100)}% human confidence)."
+        hint = "Multi-crop Swin & CLIP consensus verifying authentic photographic sensor noise."
     else:
-        hint = f"Multi-spectral consensus: {int(overall * 100)}% AI probability across forensic ensemble."
+        hint = "Multi-crop Swin & CLIP consensus with 2D-FFT and PRNU sensor analysis."
 
     if sig_info["detected"] and sig_info["confidence"] > 0.70 and not is_diagram and not is_real_camera:
-        hint = f"Detected {sig_info['signature_type']} ({sig_info['generator']}). " + hint
+        hint = f"Detected {sig_info['signature_type']}" + (f" ({sig_info['generator']}). " if sig_info.get("generator") else ". ") + hint
 
     # Explanatory attribution for significant heuristic overrides (|delta| > 0.30):
     heuristic_override_explanation = None

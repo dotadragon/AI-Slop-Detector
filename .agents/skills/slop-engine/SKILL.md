@@ -5,6 +5,20 @@ description: Enforces production-grade ML implementation, strict VRAM budgeting,
 
 # SLOP Production Engine Directives
 
+## 0. Skill Governance & Full-Stack Quality Directives
+- **Ponytail & Minimalist Architecture**: Enforce `ponytail` + `ponytail-review` on all tasks:
+  - Deletion beats addition; smallest complete change.
+  - Zero unrequested wrappers, dead exports, or speculative bloat.
+  - Review changes for over-engineering and prune aggressively.
+- **Skill Discovery**: Check `.agents/skills/` (and leverage `find-skills` when discovering or installing tools) before starting new tasks.
+- **Frontend & UI Directives**: Enforce `design-taste-frontend`, `minimalist-ui`, and `vercel-react-best-practices` across all frontend components:
+  - Use tabular monospace (`var(--mono)`) for all percentages/metrics (never `var(--display)` `Syne` on numbers).
+  - Never stack duplicate verdict badges.
+  - Remove robotic AI narration filler and dead legacy markup.
+  - Use CSS variables (`var(--bg-card)`, `var(--text-main)`, `var(--text-muted)`, `var(--border-card)`) for 100% Dark/Light theme parity.
+- **Backend Architecture**: Enforce `fastapi-best-practices` for async session scoping, Pydantic v2 schemas, and zero synchronous I/O blocking the event loop.
+- **ML Governance Hierarchy**: For ML tasks, `slop-engine` operational rules (Rule 3: all score fusion/clamping inside `fusion.py`; Rule 5: zero `0.5` default imputation on missing evidence features) strictly override generic `ml-model-training` defaults.
+
 ## 1. Zero-Mock & Anti-Shortcut Doctrine
 - NEVER mock inference outputs, return hardcoded heuristic strings, or generate synthetic evaluation scores.
 - Every ML pipeline modification MUST execute real forward passes using PyTorch and report live outputs.

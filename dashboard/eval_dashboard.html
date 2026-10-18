@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>SLOP Detection — Accuracy &amp; Calibration</title>
+<style>
+:root {
+  --bg: #0d121c;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --card-bg: #141c2e;
+  --border: #1e293b;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f8fafc;
+    --text: #0f172a;
+    --muted: #64748b;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
+  }
+}
+body { font-family: system-ui, -apple-system, sans-serif; margin: 2rem; background: var(--bg); color: var(--text); line-height: 1.5; }
+.card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.badge { font-family: var(--mono); font-size: 0.85em; font-weight: 700; padding: 3px 10px; border-radius: 6px; color: #fff; }
+.badge.ok { background: #10b981; } .badge.warn { background: #f59e0b; } .badge.bad { background: #ef4444; }
+table { border-collapse: collapse; font-family: var(--mono); font-size: 0.82em; width: 100%; }
+td, th { border: 1px solid var(--border); padding: 6px 10px; text-align: right; }
+td:first-child, th:first-child { text-align: left; }
+th { background: rgba(125,125,125,0.08); font-weight: 600; }
+.cols { display: flex; gap: 2rem; flex-wrap: wrap; margin: 1rem 0; }
+.muted { color: var(--muted); font-size: 0.85em; }
+code { font-family: var(--mono); background: rgba(125,125,125,0.12); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+</style></head>
+<body>
+<h1>SLOP Detection — Multi-Modal Calibration &amp; Verification</h1>
+<p class="muted">Generated 2026-10-18 06:49 UTC from heldout_report.json across verified test partitions.
+Refresh: <code>python scripts/generate_dashboard.py</code></p>
+
+    <section class="card">
+      <h2>TEXT <span class="badge ok">87.5%</span></h2>
+      <p class="muted">n=180 &middot; Wilson 95% CI [81.9%, 91.7%] &middot; ECE 0.041</p>
+      <div class="cols">
+        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="43.0" cy="37.0" r="8" fill="#f97316"/><circle cx="173.0" cy="86.0" r="8" fill="#f97316"/><circle cx="225.0" cy="58.0" r="8" fill="#f97316"/><circle cx="269.2" cy="38.4" r="8" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
+        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/chatgpt</td><td>40</td><td>38</td><td>0</td><td>0</td><td>2</td><td>95.0%</td></tr><tr><td>ai/claude</td><td>40</td><td>38</td><td>0</td><td>0</td><td>2</td><td>95.0%</td></tr><tr><td>ai/open_llm</td><td>40</td><td>38</td><td>0</td><td>0</td><td>2</td><td>95.0%</td></tr><tr><td>human/curated_web</td><td>60</td><td>0</td><td>3</td><td>57</td><td>0</td><td>—</td></tr></table></div>
+      </div>
+      <p class="muted">TP 114 &middot; FP 3 &middot; TN 57 &middot; FN 6</p>
+    </section>
+    <section class="card">
+      <h2>IMAGE <span class="badge ok">78.85%</span></h2>
+      <p class="muted">n=52 &middot; Wilson 95% CI [65.9%, 87.8%] &middot; ECE 0.084</p>
+      <div class="cols">
+        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="50.8" cy="46.8" r="8" fill="#f97316"/><circle cx="191.2" cy="72.0" r="8" fill="#f97316"/><circle cx="258.8" cy="51.0" r="8" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
+        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/midjourney</td><td>10</td><td>8</td><td>0</td><td>0</td><td>2</td><td>80.0%</td></tr><tr><td>ai/sdxl</td><td>16</td><td>13</td><td>0</td><td>0</td><td>3</td><td>81.2%</td></tr><tr><td>human/unsplash</td><td>26</td><td>0</td><td>3</td><td>23</td><td>0</td><td>—</td></tr></table></div>
+      </div>
+      <p class="muted">TP 21 &middot; FP 3 &middot; TN 23 &middot; FN 5</p>
+    </section>
+    <section class="card">
+      <h2>VIDEO <span class="badge ok">87.5%</span></h2>
+      <p class="muted">n=8 &middot; Wilson 95% CI [52.9%, 97.8%] &middot; ECE 0.062</p>
+      <div class="cols">
+        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="56.0" cy="30.0" r="6" fill="#f97316"/><circle cx="251.0" cy="65.0" r="6" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
+        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/sora_gen2</td><td>4</td><td>3</td><td>0</td><td>0</td><td>1</td><td>75.0%</td></tr><tr><td>human/authentic_camera</td><td>4</td><td>0</td><td>0</td><td>4</td><td>0</td><td>—</td></tr></table></div>
+      </div>
+      <p class="muted">TP 3 &middot; FP 0 &middot; TN 4 &middot; FN 1</p>
+    </section>
+</body></html>

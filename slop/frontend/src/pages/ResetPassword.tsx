@@ -1,4 +1,3 @@
-import React from "react";
 import { ResetPasswordForm } from "../components/auth/ResetPasswordForm";
 import { useSeo } from "../hooks/useSeo";
 

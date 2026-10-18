@@ -180,3 +180,34 @@ def test_coherence_and_perplexity_features():
     assert coh["available"] is True
     assert 0 <= coh["coherence_mean"] <= 1
 
+
+def test_mixed_human_ai_text_composition():
+    """Verify bimodal mixed human + AI text detection produces MIXED_AI_HUMAN composition."""
+    from app.ml.text_detector import analyze_text
+    mixed_text = (
+        "Hey guys, so yesterday I went to the grocery store to grab some coffee beans and milk for breakfast. "
+        "Honestly, I couldn't believe how crazy long the checkout line was because someone dropped a jar of jam everywhere. "
+        "Furthermore, it is important to emphasize that artificial intelligence architectures utilize multi-head self-attention mechanisms to optimize contextual representations. "
+        "In conclusion, this comprehensive framework establishes optimal operational parameters and aligns seamlessly with enterprise industry standards."
+    )
+    res = analyze_text(mixed_text)
+    signals = res["signals"]
+    assert "ai_sentence_fraction" in signals
+    assert "human_sentence_fraction" in signals
+    assert "sentence_prob_std" in signals
+    assert signals["ai_sentence_fraction"] >= 0.25, f"Expected ai_sentence_fraction >= 0.25, got {signals['ai_sentence_fraction']}"
+    assert signals["human_sentence_fraction"] >= 0.25, f"Expected human_sentence_fraction >= 0.25, got {signals['human_sentence_fraction']}"
+    assert signals["sentence_prob_std"] >= 0.22, f"Expected sentence_prob_std >= 0.22, got {signals['sentence_prob_std']}"
+    assert signals["content_composition"] == "MIXED_AI_HUMAN"
+    assert res.get("content_composition") == "MIXED_AI_HUMAN"
+
+    # Also verify via API endpoint
+    client = TestClient(app)
+    client.get("/api/v1/auth/csrf")
+    csrf_token = client.cookies.get("csrf_token")
+    headers: dict[str, str] = {"X-CSRF-Token": csrf_token} if csrf_token else {}
+    resp = client.post("/api/v1/text/analyze", json={"text": mixed_text}, headers=headers)
+    assert resp.status_code == 200
+    api_signals = resp.json()["result"]["signals"]
+    assert api_signals["content_composition"] == "MIXED_AI_HUMAN"
+

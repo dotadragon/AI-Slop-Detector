@@ -21,10 +21,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "font-src 'self' fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
             "connect-src 'self' wss: ws:; "
-            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["X-XSS-Protection"] = "0"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(), payment=()"

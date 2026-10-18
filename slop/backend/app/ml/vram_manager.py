@@ -10,12 +10,14 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any
 
+import os
 logger = logging.getLogger(__name__)
 
 # ponytail: Rung 3 stdlib hardware serialization lock. Zero Redis/Celery queue bloat.
 # Guarantees only one neural forward pass executes on the RTX 4050 at any moment.
 gpu_inference_lock = asyncio.Semaphore(1)
-VRAM_MAX_CEILING_BYTES = int(4.5 * 1024 * 1024 * 1024)  # Strict 4.5 GB ceiling for RTX 4050 6GB
+_VRAM_CEILING_GB = float(os.environ.get("SLOP_VRAM_CEILING_GB", "5.6"))
+VRAM_MAX_CEILING_BYTES = int(_VRAM_CEILING_GB * 1024 * 1024 * 1024)
 
 # Phase 3 hardening: a stalled/half-open client must never hold the GPU lock
 # indefinitely and deadlock every other modality. Acquisition above this timeout
@@ -23,6 +25,7 @@ VRAM_MAX_CEILING_BYTES = int(4.5 * 1024 * 1024 * 1024)  # Strict 4.5 GB ceiling 
 GPU_LOCK_ACQUIRE_TIMEOUT_SECONDS = 30.0
 
 # Cross-modality VRAM auto-eviction tracker
+_active_gpu_modality: str | None = None
 _last_active_modality: str | None = None
 
 
@@ -115,13 +118,26 @@ async def serialized_gpu_inference(modality: str = "general"):
                 f"GPU inference lock not acquired within {GPU_LOCK_ACQUIRE_TIMEOUT_SECONDS}s (modality={modality})"
             ) from None
 
-        global _last_active_modality
-        if _last_active_modality is not None and _last_active_modality != modality:
+        global _active_gpu_modality, _last_active_modality
+        prev_modality = _last_active_modality
+        needs_evict = False
+        if prev_modality is not None and prev_modality != modality:
+            needs_evict = True
+        elif prev_modality is not None:
+            try:
+                import torch
+                if torch.cuda.is_available() and torch.cuda.memory_allocated() > int(VRAM_MAX_CEILING_BYTES * 0.78):
+                    needs_evict = True
+            except Exception:
+                pass
+
+        if needs_evict:
             logger.info(
                 "cross_modality_vram_auto_evict",
-                extra={"prev_modality": _last_active_modality, "new_modality": modality},
+                extra={"prev_modality": prev_modality, "new_modality": modality},
             )
             release_all_model_singletons()
+        _active_gpu_modality = modality
         _last_active_modality = modality
 
         check_vram_headroom()
@@ -227,7 +243,8 @@ def release_all_model_singletons() -> dict[str, bool]:
     """
     import importlib
 
-    global _last_active_modality
+    global _active_gpu_modality, _last_active_modality
+    _active_gpu_modality = None
     _last_active_modality = None
 
     released: dict[str, bool] = {}

@@ -1,4 +1,3 @@
-import React from "react";
 import { RegisterForm } from "../components/auth/RegisterForm";
 import { useSeo } from "../hooks/useSeo";
 

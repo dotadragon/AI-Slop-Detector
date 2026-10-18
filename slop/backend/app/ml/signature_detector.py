@@ -247,24 +247,19 @@ def detect_digital_signature(
         detected = False
         sig_type = "None"
         confidence = 0.0
-        if meta_info.get("heuristic_generator"):
-            generator = meta_info["heuristic_generator"]
-        elif is_anime_ai:
-            generator = "Midjourney / Anime Diffusion (Niji Model)"
-        else:
-            generator = "Diffusion Neural Engine (Midjourney / DALL-E / Flux)"
-        generator_conf = round(float(neural_ai_prob or 0.88), 3)
-        details.append(f"Vision Transformer classified synthetic generative diffusion features ({generator})")
+        generator = meta_info.get("heuristic_generator")
+        generator_conf = round(float(neural_ai_prob or 0.88), 3) if generator else 0.0
+        details = []
         bbox = None
 
     else:
         detected = False
         sig_type = "None"
         confidence = 0.0
-        generator = "Standard Photo / Graphic"
-        generator_conf = 0.80
+        generator = None
+        generator_conf = 0.0
         bbox = None
-        details.append("No digital signature or synthetic generative watermark detected.")
+        details = []
 
     return {
         "detected": detected,

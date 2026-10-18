@@ -1,4 +1,3 @@
-import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import { LogOut, Moon, Sun } from "lucide-react";
 import { Button } from "../ui/Button";

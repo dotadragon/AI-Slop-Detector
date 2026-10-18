@@ -13,15 +13,6 @@ type AnalyticsEvent =
 const analyticsKey = import.meta.env.VITE_POSTHOG_KEY;
 const analyticsHost = import.meta.env.VITE_POSTHOG_HOST ?? "https://app.posthog.com";
 
-export const activationEvents: AnalyticsEvent[] = [
-  "signup_completed",
-  "scan_started",
-  "scan_completed",
-  "checkout_started",
-  "subscription_changed",
-  "onboarding_completed"
-];
-
 // Lazy singleton reference
 let posthogClient: typeof import("posthog-js").default | null = null;
 
