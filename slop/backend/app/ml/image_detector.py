@@ -674,18 +674,24 @@ def _gradcam_heatmap(image: Image.Image) -> str | None:
 # MAIN PIPELINE
 # ============================================================================
 
-def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_path: str | None = None, is_video_frame: bool = False) -> dict:
+def _analyze_pil_image(
+    image: Image.Image,
+    file_name: str = "live-frame",
+    file_path: str | None = None,
+    is_video_frame: bool = False,
+    include_heatmaps: bool = True,
+) -> dict:
     """v3.0: Multi-tier pipeline with enhanced forensics, explainability, and responsible CFA gating."""
     # Forensic Categorization
     forensic_res = _forensic_image_type(image)
     is_diagram, is_anime_ai, is_real_camera = forensic_res
 
     # Tier 1: Provenance & EXIF
-    exif = _check_exif(image)
-    c2pa = _check_c2pa(file_path) if file_path else {"has_c2pa": False, "verified": False}
+    exif = {"metadata_risk": 0.0, "has_camera_make": False, "flags": []} if is_video_frame else _check_exif(image)
+    c2pa = {"has_c2pa": False, "verified": False} if (is_video_frame or not file_path) else _check_c2pa(file_path)
 
     # Tier 2: Heuristics (ELA + FFT + Noise + CFA + DCT)
-    ela, ela_heatmap = _ela_score(image, include_heatmap=not is_video_frame)
+    ela, ela_heatmap = _ela_score(image, include_heatmap=(include_heatmaps and not is_video_frame))
     fft = _fft_score(image)
     noise = _noise_score(image)
     cfa = _cfa_score(image)       # v3.0: CFA analysis
@@ -696,8 +702,9 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     # Never present high-frequency demosaicing or CFA metrics as definitive AI proof
     # if an uploaded image has undergone heavy JPEG compression or chroma subsampling.
     # When JPEG quality is below 95, zero out the CFA penalty to prevent false positives on genuine user photos.
-    jpeg_quality = _estimate_jpeg_quality(image)
-    if is_video_frame or (jpeg_quality is not None and jpeg_quality < 95):
+    jpeg_quality = None if is_video_frame else _estimate_jpeg_quality(image)
+    cfa_reliable = False if (is_video_frame or (jpeg_quality is not None and jpeg_quality < 95)) else True
+    if not cfa_reliable:
         cfa_effective = min(cfa, 0.20) if cfa <= 0.20 else 0.50  # Keep real-camera confirmation, neutralize AI penalty
         if is_video_frame:
             cfa_weight = 0.05
@@ -722,13 +729,14 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
         dct_weight = 0.14
         exif_weight = 0.10
 
+    meta_risk = 0.0 if is_video_frame else exif["metadata_risk"]
     heuristic = round(_clamp01(
         ela_weight * ela +
         fft_weight * fft +
         noise_weight * noise +
         cfa_weight * cfa_effective +
         dct_weight * dct +
-        exif_weight * exif["metadata_risk"]
+        exif_weight * meta_risk
     ), 3)
 
     # Tier 3: Neural Model
@@ -738,7 +746,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     multi_crop_prob, crop_probs = _multi_crop_score(image)
 
     # v3.0: Native GradCAM explainability heatmap
-    gradcam_b64 = None if is_video_frame else _gradcam_heatmap(image)
+    gradcam_b64 = None if (is_video_frame or not include_heatmaps) else _gradcam_heatmap(image)
 
     # Tier 4: Digital Signature & Bounding Box
     raw_bytes = None
@@ -761,7 +769,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     )
 
     # v3.4: PRNU (Photo-Response Non-Uniformity) sensor noise floor map
-    prnu_b64 = None if is_video_frame else generate_prnu_noise_map(image)
+    prnu_b64 = None if (is_video_frame or not include_heatmaps) else generate_prnu_noise_map(image)
 
     # v3.5: NPR (Neighboring Pixel Relationships) extractor
     from app.ml.npr_extractor import compute_npr_features
@@ -817,7 +825,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     # OR if best_neural >= 0.42 OR latent_grid >= 0.35 OR npr_score >= 0.42.
     # When exif["has_camera_make"] is True and best_neural < 0.45, preserve is_real_camera = True.
     has_cam_make = bool(exif.get("has_camera_make", False))
-    is_png = (getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png"))
+    is_png = (not is_video_frame) and ((getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png")))
 
     effective_real_cam = is_real_camera
     if is_png:
@@ -841,7 +849,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
         "fft_score": fft,
         "noise_score": noise,
         "dct_score": dct,
-        "metadata_risk": exif["metadata_risk"],
+        "metadata_risk": meta_risk,
         # Neural-First Consensus Authority (GEMINI.md Rule 6 & Directive 1):
         # Diagram forensic flag passed to fusion.py (single authority for scoring & constraints)
         "is_diagram": 1.0 if is_diagram else 0.0,

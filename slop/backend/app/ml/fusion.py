@@ -1,6 +1,6 @@
+# ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
 """
 SLOP Forensic Fusion Engine v1.0 — Single Score Authority
-# ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
 Complies with Rule 2, Rule 3, and Rule 5 of ANTIGRAVITY_RULES.md.
 
 This module is the EXCLUSIVE component authorized to compute final multi-modal
@@ -782,6 +782,9 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
     median_face = float(features.get("median_face_score", max_face))
     flicker = float(features.get("temporal_flicker", 0.0))
     jitter = float(features.get("temporal_jitter", 0.0))
+    flow_residual = float(features.get("flow_residual_score", 0.0))
+    color_instability = float(features.get("color_instability", 0.0))
+    frame_score_std = float(features.get("frame_score_std", 0.0))
     synthid = float(features.get("synthid_detected", 0.0))
     high_threat_count = int(features.get("high_threat_frame_count", 0))
     frames_with_faces = int(features.get("frames_with_faces", 0))
@@ -819,32 +822,34 @@ def fuse_video_score(features: dict[str, Any]) -> dict[str, Any]:
         contributions["top_quartile_mean"] = round(0.40 * top_quartile, 4)
         contributions["global_mean"] = round(0.20 * global_mean, 4)
 
-        if is_screen_rec > 0.5 and has_deepfake <= 0.5:
-            # Authentic human software UI screen recording
-            score = 0.04
-            contributions["screen_recording_suppression"] = 0.04
-        elif (has_deepfake > 0.5 or median_face >= 0.50) and is_screen_rec <= 0.5:
-            score = max(score, median_face, 0.82)
-            contributions["facial_deepfake_consensus"] = round(float(score), 4)
-        elif synthid > 0.5 and is_screen_rec <= 0.5:
-            score = max(score, 0.85)
-            contributions["synthid_corroboration"] = 0.85
-        elif (flicker > 0.08 or jitter > 0.06) and score >= 0.40 and is_screen_rec <= 0.5 and (has_deepfake > 0.5 or frames_with_faces == 0):
-            score = min(0.98, score + 0.06)
-            contributions["temporal_jitter_corroboration"] = 0.06
-        elif peak_threat >= 0.80 and high_threat_count >= 3 and is_screen_rec <= 0.5:
-            score = max(score, 0.80)
-            contributions["high_threat_persistence"] = 0.80
+    # Post-logistic / post-heuristic video modality & temporal calibration
+    if is_screen_rec > 0.5 and has_deepfake <= 0.5:
+        # Authentic human software UI screen recording
+        score = 0.04
+        contributions["screen_recording_suppression"] = 0.04
+    elif (has_deepfake > 0.5 or median_face >= 0.50 or max_face >= 0.70) and is_screen_rec <= 0.5:
+        score = max(score, median_face, max_face, 0.82)
+        contributions["facial_deepfake_consensus"] = round(float(score), 4)
+    elif synthid > 0.5 and is_screen_rec <= 0.5:
+        score = max(score, 0.85)
+        contributions["synthid_corroboration"] = 0.85
+    elif (flicker > 0.08 or jitter > 0.06) and score >= 0.40 and is_screen_rec <= 0.5 and (has_deepfake > 0.5 or frames_with_faces == 0):
+        score = min(0.98, score + 0.06)
+        contributions["temporal_jitter_corroboration"] = 0.06
+    elif peak_threat >= 0.80 and high_threat_count >= 3 and is_screen_rec <= 0.5 and (frames_with_faces == 0 or has_deepfake > 0.5):
+        score = max(score, 0.80)
+        contributions["high_threat_persistence"] = 0.80
 
-        # Natural real-camera footage correction: suppress false positives on authentic video
-        if is_screen_rec <= 0.5 and has_deepfake <= 0.5 and median_face <= 0.45 and peak_threat < 0.75 and top_quartile < 0.70:
-            if frames_with_faces > 0 and synthid <= 0.5:
-                # Video contains verified authentic human face(s) and zero synthetic signatures
-                score = min(score, 0.20)
+    # Natural real-camera footage correction: suppress false positives on authentic video
+    if is_screen_rec <= 0.5 and has_deepfake <= 0.5 and median_face <= 0.45 and max_face <= 0.50 and synthid <= 0.5:
+        if frames_with_faces > 0:
+            # Video contains verified authentic human face(s) and zero synthetic signatures
+            score = min(score, 0.20)
+            contributions["natural_video_correction"] = round(float(score), 4)
+        else:
+            if color_instability <= 0.20 and jitter <= 0.10 and flow_residual <= 0.12:
+                score = min(score * 0.45, 0.25)
                 contributions["natural_video_correction"] = round(float(score), 4)
-            else:
-                score *= 0.65
-                contributions["natural_video_correction"] = 0.65
 
     final_score = round(_clamp01(score), 3)
 

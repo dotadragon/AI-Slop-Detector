@@ -5,11 +5,11 @@
     "precision": 100.0,
     "recall": 100.0,
     "f1": 100.0,
-    "tp": 3,
+    "tp": 15,
     "fp": 0,
-    "tn": 3,
+    "tn": 15,
     "fn": 0,
-    "total": 6,
+    "total": 30,
     "samples": [
       {
         "file": "chatgpt_essay.txt",
@@ -30,6 +30,78 @@
         "pred": "AI"
       },
       {
+        "file": "claude_delve.txt",
+        "truth": "AI",
+        "score": 0.985,
+        "pred": "AI"
+      },
+      {
+        "file": "deepseek_r1_compiler_opt.txt",
+        "truth": "AI",
+        "score": 0.65,
+        "pred": "AI"
+      },
+      {
+        "file": "deepseek_r1_math_proof.txt",
+        "truth": "AI",
+        "score": 0.711,
+        "pred": "AI"
+      },
+      {
+        "file": "deepseek_reasoning.txt",
+        "truth": "AI",
+        "score": 0.724,
+        "pred": "AI"
+      },
+      {
+        "file": "gemini20_macroeconomics.txt",
+        "truth": "AI",
+        "score": 0.991,
+        "pred": "AI"
+      },
+      {
+        "file": "gemini20_renewable_energy.txt",
+        "truth": "AI",
+        "score": 0.984,
+        "pred": "AI"
+      },
+      {
+        "file": "gemini_breakdown.txt",
+        "truth": "AI",
+        "score": 0.706,
+        "pred": "AI"
+      },
+      {
+        "file": "gpt4o_overview.txt",
+        "truth": "AI",
+        "score": 0.984,
+        "pred": "AI"
+      },
+      {
+        "file": "gpt4o_quantum_computing.txt",
+        "truth": "AI",
+        "score": 0.724,
+        "pred": "AI"
+      },
+      {
+        "file": "gpt4o_supply_chain.txt",
+        "truth": "AI",
+        "score": 0.742,
+        "pred": "AI"
+      },
+      {
+        "file": "gpt4o_synthetic_biology.txt",
+        "truth": "AI",
+        "score": 0.7,
+        "pred": "AI"
+      },
+      {
+        "file": "llama33_edge_inference.txt",
+        "truth": "AI",
+        "score": 0.706,
+        "pred": "AI"
+      },
+      {
         "file": "arxiv_abstract_2019.txt",
         "truth": "HUMAN",
         "score": 0.337,
@@ -46,6 +118,78 @@
         "truth": "HUMAN",
         "score": 0.103,
         "pred": "HUMAN"
+      },
+      {
+        "file": "code_review_critique.txt",
+        "truth": "HUMAN",
+        "score": 0.044,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "debugging_notes.txt",
+        "truth": "HUMAN",
+        "score": 0.03,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "dev_notes.txt",
+        "truth": "HUMAN",
+        "score": 0.034,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "git_commit_log.txt",
+        "truth": "HUMAN",
+        "score": 0.165,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "historical_article_extract.txt",
+        "truth": "HUMAN",
+        "score": 0.19,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "open_source_readme.txt",
+        "truth": "HUMAN",
+        "score": 0.338,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "personal_journal.txt",
+        "truth": "HUMAN",
+        "score": 0.022,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "quick_update.txt",
+        "truth": "HUMAN",
+        "score": 0.103,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "reddit_comment.txt",
+        "truth": "HUMAN",
+        "score": 0.037,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "reddit_post_rant.txt",
+        "truth": "HUMAN",
+        "score": 0.014,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "slack_team_sync.txt",
+        "truth": "HUMAN",
+        "score": 0.049,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "stack_overflow_answer.txt",
+        "truth": "HUMAN",
+        "score": 0.27,
+        "pred": "HUMAN"
       }
     ]
   },
@@ -54,11 +198,11 @@
     "precision": 100.0,
     "recall": 100.0,
     "f1": 100.0,
-    "tp": 2,
+    "tp": 7,
     "fp": 0,
-    "tn": 2,
+    "tn": 7,
     "fn": 0,
-    "total": 4,
+    "total": 14,
     "samples": [
       {
         "file": "media_1789755920467.png",
@@ -73,15 +217,75 @@
         "pred": "AI"
       },
       {
+        "file": "media_1789757572032.jpg",
+        "truth": "AI",
+        "score": 0.988,
+        "pred": "AI"
+      },
+      {
+        "file": "media_1789757573221.jpg",
+        "truth": "AI",
+        "score": 0.989,
+        "pred": "AI"
+      },
+      {
+        "file": "synthetic_latent_flow_1.png",
+        "truth": "AI",
+        "score": 1.0,
+        "pred": "AI"
+      },
+      {
+        "file": "synthetic_latent_flow_2.png",
+        "truth": "AI",
+        "score": 1.0,
+        "pred": "AI"
+      },
+      {
+        "file": "synthetic_latent_flow_3.png",
+        "truth": "AI",
+        "score": 1.0,
+        "pred": "AI"
+      },
+      {
         "file": "camera_sensor_cfa_1.jpg",
         "truth": "HUMAN_PHOTO",
         "score": 0.008,
         "pred": "HUMAN"
       },
       {
+        "file": "camera_sensor_cfa_2.jpg",
+        "truth": "HUMAN_PHOTO",
+        "score": 0.01,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "camera_sensor_cfa_3.jpg",
+        "truth": "HUMAN_PHOTO",
+        "score": 0.01,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "media_1789756044612.jpg",
+        "truth": "HUMAN_PHOTO",
+        "score": 0.005,
+        "pred": "HUMAN"
+      },
+      {
         "file": "media_1789756069231.png",
         "truth": "HUMAN_DIAGRAM",
         "score": 0.431,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "orthogonal_architecture_diagram_1.png",
+        "truth": "HUMAN_DIAGRAM",
+        "score": 0.0,
+        "pred": "HUMAN"
+      },
+      {
+        "file": "orthogonal_architecture_diagram_2.png",
+        "truth": "HUMAN_DIAGRAM",
+        "score": 0.0,
         "pred": "HUMAN"
       }
     ]
@@ -100,7 +304,7 @@
       {
         "file": "test.mp4",
         "truth": "AI_VIDEO",
-        "score": 0.914,
+        "score": 0.928,
         "pred": "AI"
       },
       {

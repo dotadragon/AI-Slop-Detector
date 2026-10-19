@@ -32,34 +32,34 @@ code { font-family: var(--mono); background: rgba(125,125,125,0.12); padding: 2p
 </style></head>
 <body>
 <h1>SLOP Detection — Multi-Modal Calibration &amp; Verification</h1>
-<p class="muted">Generated 2026-10-18 06:49 UTC from heldout_report.json across verified test partitions.
+<p class="muted">Generated 2026-10-19 10:11 UTC from heldout_report.json across verified test partitions.
 Refresh: <code>python scripts/generate_dashboard.py</code></p>
 
     <section class="card">
-      <h2>TEXT <span class="badge ok">87.5%</span></h2>
-      <p class="muted">n=180 &middot; Wilson 95% CI [81.9%, 91.7%] &middot; ECE 0.041</p>
+      <h2>TEXT <span class="badge ok">93.33%</span></h2>
+      <p class="muted">n=30 &middot; Wilson 95% CI [78.68%, 98.15%] &middot; ECE 0.1466</p>
       <div class="cols">
-        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="43.0" cy="37.0" r="8" fill="#f97316"/><circle cx="173.0" cy="86.0" r="8" fill="#f97316"/><circle cx="225.0" cy="58.0" r="8" fill="#f97316"/><circle cx="269.2" cy="38.4" r="8" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
-        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/chatgpt</td><td>40</td><td>38</td><td>0</td><td>0</td><td>2</td><td>95.0%</td></tr><tr><td>ai/claude</td><td>40</td><td>38</td><td>0</td><td>0</td><td>2</td><td>95.0%</td></tr><tr><td>ai/open_llm</td><td>40</td><td>38</td><td>0</td><td>0</td><td>2</td><td>95.0%</td></tr><tr><td>human/curated_web</td><td>60</td><td>0</td><td>3</td><td>57</td><td>0</td><td>—</td></tr></table></div>
+        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="34.5" cy="30.0" r="5" fill="#f97316"/><circle cx="199.0" cy="170.0" r="4" fill="#f97316"/><circle cx="288.4" cy="30.0" r="8" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
+        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/gpt2</td><td>5</td><td>5</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>ai/llama-chat</td><td>5</td><td>5</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>ai/mistral</td><td>5</td><td>5</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>ai/mpt</td><td>5</td><td>5</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>ai/mpt-chat</td><td>5</td><td>5</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>human/human</td><td>5</td><td>0</td><td>2</td><td>3</td><td>0</td><td>—</td></tr></table></div>
       </div>
-      <p class="muted">TP 114 &middot; FP 3 &middot; TN 57 &middot; FN 6</p>
+      <p class="muted">TP 25 &middot; FP 2 &middot; TN 3 &middot; FN 0</p>
     </section>
     <section class="card">
-      <h2>IMAGE <span class="badge ok">78.85%</span></h2>
-      <p class="muted">n=52 &middot; Wilson 95% CI [65.9%, 87.8%] &middot; ECE 0.084</p>
+      <h2>IMAGE <span class="badge warn">73.53%</span></h2>
+      <p class="muted">n=34 &middot; Wilson 95% CI [56.88%, 85.4%] &middot; ECE 0.3358</p>
       <div class="cols">
-        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="50.8" cy="46.8" r="8" fill="#f97316"/><circle cx="191.2" cy="72.0" r="8" fill="#f97316"/><circle cx="258.8" cy="51.0" r="8" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
-        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/midjourney</td><td>10</td><td>8</td><td>0</td><td>0</td><td>2</td><td>80.0%</td></tr><tr><td>ai/sdxl</td><td>16</td><td>13</td><td>0</td><td>0</td><td>3</td><td>81.2%</td></tr><tr><td>human/unsplash</td><td>26</td><td>0</td><td>3</td><td>23</td><td>0</td><td>—</td></tr></table></div>
+        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="31.9" cy="94.6" r="8" fill="#f97316"/><circle cx="59.5" cy="76.7" r="5" fill="#f97316"/><circle cx="94.5" cy="170.0" r="3" fill="#f97316"/><circle cx="121.8" cy="170.0" r="3" fill="#f97316"/><circle cx="167.2" cy="30.0" r="4" fill="#f97316"/><circle cx="201.9" cy="30.0" r="5" fill="#f97316"/><circle cx="251.3" cy="30.0" r="3" fill="#f97316"/><circle cx="286.3" cy="30.0" r="8" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
+        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/cascade_lcm</td><td>2</td><td>2</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>ai/dit</td><td>3</td><td>2</td><td>0</td><td>0</td><td>1</td><td>66.7%</td></tr><tr><td>ai/kandinsky</td><td>3</td><td>3</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>ai/midjourney</td><td>3</td><td>0</td><td>0</td><td>0</td><td>3</td><td>0.0%</td></tr><tr><td>ai/realvis_xl</td><td>4</td><td>0</td><td>0</td><td>0</td><td>4</td><td>0.0%</td></tr><tr><td>ai/sdxl_proxy</td><td>10</td><td>9</td><td>0</td><td>0</td><td>1</td><td>90.0%</td></tr><tr><td>human/picsum_unsplash</td><td>9</td><td>0</td><td>0</td><td>9</td><td>0</td><td>—</td></tr></table></div>
       </div>
-      <p class="muted">TP 21 &middot; FP 3 &middot; TN 23 &middot; FN 5</p>
+      <p class="muted">TP 16 &middot; FP 0 &middot; TN 9 &middot; FN 9</p>
     </section>
     <section class="card">
-      <h2>VIDEO <span class="badge ok">87.5%</span></h2>
-      <p class="muted">n=8 &middot; Wilson 95% CI [52.9%, 97.8%] &middot; ECE 0.062</p>
+      <h2>VIDEO <span class="badge ok">100.0%</span></h2>
+      <p class="muted">n=8 &middot; Wilson 95% CI [67.56%, 100.0%] &middot; ECE 0.435</p>
       <div class="cols">
-        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="56.0" cy="30.0" r="6" fill="#f97316"/><circle cx="251.0" cy="65.0" r="6" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
-        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/sora_gen2</td><td>4</td><td>3</td><td>0</td><td>0</td><td>1</td><td>75.0%</td></tr><tr><td>human/authentic_camera</td><td>4</td><td>0</td><td>0</td><td>4</td><td>0</td><td>—</td></tr></table></div>
+        <div><h3>Reliability Curve</h3><svg width="320" height="200"><line x1="30" y1="170" x2="290" y2="170" stroke="#64748b"/><line x1="30" y1="30" x2="30" y2="170" stroke="#64748b"/><line x1="30" y1="170" x2="290" y2="30" stroke="#64748b" stroke-dasharray="4 3"/><circle cx="69.0" cy="30.0" r="4" fill="#f97316"/><circle cx="82.0" cy="30.0" r="4" fill="#f97316"/><circle cx="243.2" cy="30.0" r="3" fill="#f97316"/><circle cx="290.0" cy="30.0" r="5" fill="#f97316"/><text x="160.0" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">predicted confidence</text><text x="10" y="100.0" font-size="10" transform="rotate(-90 10 100.0)" fill="#94a3b8">observed acc</text></svg></div>
+        <div style="flex: 1; min-width: 280px;"><h3>Per-Subtype Confusion Matrix</h3><table><tr><th>subtype</th><th>n</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th><th>recall</th></tr><tr><td>ai/deepfake</td><td>4</td><td>4</td><td>0</td><td>0</td><td>0</td><td>100.0%</td></tr><tr><td>human/authentic</td><td>4</td><td>0</td><td>0</td><td>4</td><td>0</td><td>—</td></tr></table></div>
       </div>
-      <p class="muted">TP 3 &middot; FP 0 &middot; TN 4 &middot; FN 1</p>
+      <p class="muted">TP 4 &middot; FP 0 &middot; TN 4 &middot; FN 0</p>
     </section>
 </body></html>

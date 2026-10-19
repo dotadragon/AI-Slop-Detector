@@ -144,10 +144,12 @@ async def get_calibration_dashboard():
     dashboard_path = None
     for p in Path(__file__).resolve().parents:
         cand = p / "dashboard" / "eval_dashboard.html"
-        if not cand.exists():
-            cand = p / "artifacts" / "eval_dashboard.html"
         if cand.exists():
             dashboard_path = cand
+            break
+        cand_art = p / "artifacts" / "eval_dashboard.html"
+        if cand_art.exists():
+            dashboard_path = cand_art
             break
         gen_script = p / "scripts" / "generate_dashboard.py"
         if not gen_script.exists():

@@ -1,3 +1,4 @@
+# ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
 """
 SLOP Video Detector v3.1 — Production-grade dual-track video forensics.
 ponytail: zero-overhead dual-track architecture (Face-crop deepfakes + Full-scene diffusion + Optical flow temporal coherence)
@@ -186,14 +187,17 @@ def _compute_face_swap_metrics(
         # Authentic camera face preservation:
         # Camera faces retain high frequency FFT texture (>= 0.240) and healthy sharpness ratio,
         # or exhibit strong high-frequency facial pore/wrinkle detail (in_lap > 30.0 and lap_r >= 0.65).
-        is_authentic_face = (hf_ratio >= 0.240 and lap_r >= 0.35) or (in_lap > 40.0 and lap_r >= 0.50)
+        # Inswapper composite boundary seam detection: pasted donor faces exhibit artificial Laplacian variance
+        # (in_lap > 150.0) combined with abnormal edge sharpness (lap_r > 1.40) and high neural threat.
+        is_composite_seam = (in_lap > 150.0 and lap_r > 1.40 and dima_prob >= 0.85)
+        is_authentic_face = (not is_composite_seam) and ((hf_ratio >= 0.240 and lap_r >= 0.35) or (in_lap > 40.0 and lap_r >= 0.50))
 
         if is_authentic_face:
             # Suppress neural false positive on real compressed video face
             face_score = min(dima_prob * 0.15, 0.20)
         else:
             # Physical upsample anomaly corroborates neural detection
-            face_score = float(np.clip(0.35 * dima_prob + 0.65 * upsample_anomaly, 0.0, 1.0))
+            face_score = float(np.clip(0.70 * dima_prob + 0.30 * upsample_anomaly, 0.0, 1.0))
 
         return round(face_score, 3), {
             "hf_ratio": round(hf_ratio, 4),
@@ -385,7 +389,13 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
             scene_ai_score = 0.0
             is_synthid = False
         else:
-            scene_result = _analyze_pil_image(pil_img, file_name=f"frame_{i}.png", file_path=None, is_video_frame=True)
+            scene_result = _analyze_pil_image(
+                pil_img,
+                file_name=f"frame_{i}.png",
+                file_path=None,
+                is_video_frame=True,
+                include_heatmaps=False,
+            )
             scene_ai_score = scene_result["overall_score"]
             sig_info = scene_result.get("digital_signature", {})
             is_synthid = sig_info.get("detected", False) and (
@@ -435,8 +445,10 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
                 small_prev = cv2.resize(prev_gray, (320, 240))
                 small_curr = cv2.resize(gray_u8, (320, 240))
                 flow = cv2.calcOpticalFlowFarneback(small_prev, small_curr, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-                res_u = flow[..., 0] - np.median(flow[..., 0])
-                res_v = flow[..., 1] - np.median(flow[..., 1])
+                med_u = float(np.median(flow[..., 0]))
+                med_v = float(np.median(flow[..., 1]))
+                res_u = flow[..., 0] - med_u
+                res_v = flow[..., 1] - med_v
                 mag, _ = cv2.cartToPolar(res_u, res_v)
                 temporal_change = round(float(np.mean(mag)) / 10.0, 4)
                 temporal_flicker = round(float(np.std(mag)) / 10.0, 4)
@@ -524,7 +536,8 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
         has_deepfake_face = (deepfake_frame_count >= 3 and deepfake_frame_ratio >= 0.35) or (median_face_score >= 0.50)
         avg_flicker = float(np.mean([f.get("temporal_flicker", 0.0) for f in frame_data])) if frame_data else 0.0
         avg_jitter = float(np.mean([f.get("temporal_jitter", 0.0) for f in frame_data])) if frame_data else 0.0
-        color_instability = round(1.0 - float(np.mean([f.get("color_stability", 1.0) for f in frame_data])), 4)
+        flow_residual_score = float(np.mean([f.get("temporal_change", 0.0) for f in frame_data])) if frame_data else 0.0
+        color_instability = round(1.0 - min(f.get("color_stability", 1.0) for f in frame_data), 4) if frame_data else 0.0
         frame_score_std = round(float(np.std(scores)), 4)
 
         fusion_features = {
@@ -538,6 +551,7 @@ def analyze_video_streaming(file_path: str, job_id: str) -> Generator[dict, None
             "deepfake_face_ratio": deepfake_frame_ratio,
             "temporal_flicker": avg_flicker,
             "temporal_jitter": avg_jitter,
+            "flow_residual_score": flow_residual_score,
             "synthid_detected": 1.0 if any_synthid_detected else 0.0,
             "high_threat_frame_count": sum(1 for s in scores if s >= 0.60),
             "color_instability": color_instability,

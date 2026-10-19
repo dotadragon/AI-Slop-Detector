@@ -180,19 +180,24 @@ def main():
     parser.add_argument("--save", type=str, default="accuracy_report.json", help="Save JSON report")
     args = parser.parse_args()
 
+    from app.ml.vram_manager import release_all_model_singletons
+
     print("==================================================")
     print(f"  SLOP ACCURACY EVALUATION (mode: {'QUICK' if args.quick else 'FULL'})")
     print("==================================================")
 
     print("\n[1/3] Evaluating Text Forensics Pipeline...")
+    release_all_model_singletons()
     text_res = evaluate_text(quick=args.quick)
     print(f"  Accuracy: {text_res['accuracy']}% | Precision: {text_res['precision']}% | Recall: {text_res['recall']}% | (TP={text_res['tp']}, FP={text_res['fp']}, TN={text_res['tn']}, FN={text_res['fn']})")
 
     print("\n[2/3] Evaluating Image Forensics Pipeline...")
+    release_all_model_singletons()
     img_res = evaluate_image(quick=args.quick)
     print(f"  Accuracy: {img_res['accuracy']}% | Precision: {img_res['precision']}% | Recall: {img_res['recall']}% | (TP={img_res['tp']}, FP={img_res['fp']}, TN={img_res['tn']}, FN={img_res['fn']})")
 
     print("\n[3/3] Evaluating Video Forensics Pipeline...")
+    release_all_model_singletons()
     vid_res = evaluate_video(quick=args.quick)
     print(f"  Accuracy: {vid_res['accuracy']}% | Precision: {vid_res['precision']}% | Recall: {vid_res['recall']}% | (TP={vid_res['tp']}, FP={vid_res['fp']}, TN={vid_res['tn']}, FN={vid_res['fn']})")
 
