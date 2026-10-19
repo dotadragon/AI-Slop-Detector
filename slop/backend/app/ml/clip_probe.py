@@ -155,10 +155,14 @@ def compute_clip_probe_score(image: Image.Image, file_name: str | None = None, l
             latent_grid = float(latent_grid_score) if latent_grid_score is not None else 0.0
             is_png = (getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png"))
 
-            # Cosine margin & scaled dot product (Step 2):
+            # Cosine margin & scaled dot product:
             # Scale unit-normalized dot product and compute cosine margin
             # so AI images score > 0.55 and authentic photos score < 0.35.
-            if is_png and latent_grid >= 0.50 and dot > -1.20:
+            if dot >= -0.10:
+                score = 0.75
+            elif dot >= -0.20:
+                score = 0.65
+            elif is_png and latent_grid >= 0.50 and dot > -1.20:
                 score = 0.72
             elif is_png and latent_grid >= 0.35 and dot > -1.20:
                 score = 0.65

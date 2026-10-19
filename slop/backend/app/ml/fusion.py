@@ -232,7 +232,10 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
 
     bn_val = float(best_neural) if best_neural is not None else None
     effective_is_diagram = is_diagram
-    if is_diagram > 0.5 and bn_val is not None:
+    if (clip_probe is not None and float(clip_probe) >= 0.45) or (npr is not None and float(npr) >= 0.45):
+        effective_is_diagram = 0.0
+        is_diagram = 0.0
+    elif is_diagram > 0.5 and bn_val is not None:
         if bn_val >= 0.75:
             effective_is_diagram = 0.0
         elif bn_val >= 0.55:
@@ -278,6 +281,17 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
             contributions[feat_name] = round(contrib, 4)
 
         score = _sigmoid(logit)
+
+        # Multi-signal generative corroboration inside fusion (single authority)
+        if is_real_cam <= 0.5 and c2pa_verified <= 0.5:
+            if clip_probe is not None and float(clip_probe) >= 0.50:
+                score = max(score, float(clip_probe) * 0.90)
+            if npr is not None and (float(npr) >= 0.55 or (float(npr) >= 0.35 and float(features.get("npr_anisotropy", 1.0)) > 1.4)):
+                score = max(score, 0.65)
+            if clip_probe is not None and float(clip_probe) >= 0.25 and latent_grid_score >= 0.25:
+                score = max(score, 0.62)
+            if bn_val is not None and bn_val >= 0.38:
+                score = max(score, 0.55)
     else:
         contributions = {}
         if bn_val is not None:
@@ -536,12 +550,20 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
         burst = float(features.get("burstiness", 0.5))
         stylometry = float(features.get("stylometry_score", 0.0))
         markers = float(features.get("marker_hits", 0.0))
+        is_strong_human_neural = (
+            neural_prob is not None
+            and float(neural_prob) < 0.15
+            and float(features.get("ai_sentence_fraction", 0.0)) == 0.0
+            and float(features.get("human_sentence_fraction", 0.0)) >= 0.60
+            and llm_pattern < 0.50
+        )
         is_frontier_ai = (
-            (stylometry >= 0.30 or markers >= 1.0)
+            not is_strong_human_neural
+            and (stylometry >= 0.30 or markers >= 1.0)
             and (
                 (burst <= 0.12 and float(features.get("contraction_score", 0.5)) >= 0.60)
                 or llm_pattern >= 0.55
-                or float(features.get("gltr_top10_frac", 0.0)) >= 0.55
+                or (float(features.get("gltr_top10_frac", 0.0)) >= 0.85 and (neural_prob is None or float(neural_prob) >= 0.25))
             )
         )
         if is_frontier_ai:

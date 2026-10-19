@@ -207,25 +207,25 @@
       {
         "file": "media_1789755920467.png",
         "truth": "AI",
-        "score": 0.992,
+        "score": 0.985,
         "pred": "AI"
       },
       {
         "file": "media_1789757571085.jpg",
         "truth": "AI",
-        "score": 0.99,
+        "score": 0.982,
         "pred": "AI"
       },
       {
         "file": "media_1789757572032.jpg",
         "truth": "AI",
-        "score": 0.988,
+        "score": 0.977,
         "pred": "AI"
       },
       {
         "file": "media_1789757573221.jpg",
         "truth": "AI",
-        "score": 0.989,
+        "score": 0.979,
         "pred": "AI"
       },
       {
@@ -279,13 +279,13 @@
       {
         "file": "orthogonal_architecture_diagram_1.png",
         "truth": "HUMAN_DIAGRAM",
-        "score": 0.0,
+        "score": 0.206,
         "pred": "HUMAN"
       },
       {
         "file": "orthogonal_architecture_diagram_2.png",
         "truth": "HUMAN_DIAGRAM",
-        "score": 0.0,
+        "score": 0.206,
         "pred": "HUMAN"
       }
     ]

@@ -817,12 +817,11 @@ def _analyze_pil_image(
             model_prob is not None and model_prob >= 0.82 and
             multi_crop_prob is not None and multi_crop_prob >= 0.82 and
             latent_grid >= 0.55
-        ):
+        ) or (clip_score is not None and clip_score >= 0.50) or (npr_score is not None and npr_score >= 0.45):
             forensic_res.forensic_type["is_clean_technical_diagram"] = False
 
-    # An image must NOT be flagged is_real_camera = True if it is a lossless PNG
-    # (image_format == "PNG") with no physical camera EXIF (not exif["has_camera_make"])
-    # OR if best_neural >= 0.42 OR latent_grid >= 0.35 OR npr_score >= 0.42.
+    # An image must NOT be flagged is_real_camera = True if it has no physical camera EXIF
+    # and exhibits active synthetic/AI indicators (best_neural, latent_grid, npr_score, clip_score).
     # When exif["has_camera_make"] is True and best_neural < 0.45, preserve is_real_camera = True.
     has_cam_make = bool(exif.get("has_camera_make", False))
     is_png = (not is_video_frame) and ((getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png")))
@@ -831,7 +830,7 @@ def _analyze_pil_image(
     if is_png:
         if (not has_cam_make) or (best_neural is not None and best_neural >= 0.42) or (latent_grid >= 0.35) or (npr_score is not None and npr_score >= 0.42):
             effective_real_cam = False
-    elif best_neural is not None and best_neural >= 0.65:
+    elif (clip_score is not None and clip_score >= 0.50) or (best_neural is not None and best_neural >= 0.38) or (npr_score is not None and npr_score >= 0.55):
         effective_real_cam = False
 
     if has_cam_make and (best_neural is None or best_neural < 0.45):
@@ -852,7 +851,7 @@ def _analyze_pil_image(
         "metadata_risk": meta_risk,
         # Neural-First Consensus Authority (GEMINI.md Rule 6 & Directive 1):
         # Diagram forensic flag passed to fusion.py (single authority for scoring & constraints)
-        "is_diagram": 1.0 if is_diagram else 0.0,
+        "is_diagram": 1.0 if (is_diagram and not (clip_score is not None and clip_score >= 0.50) and not (npr_score is not None and npr_score >= 0.45)) else 0.0,
         "is_real_camera": 1.0 if effective_real_cam else 0.0,
         "is_anime_ai": 1.0 if (is_anime_ai and not effective_real_cam) else 0.0,
         "signature_detected": 1.0 if sig_info["detected"] else 0.0,
@@ -861,6 +860,7 @@ def _analyze_pil_image(
         "c2pa_multiplier": float(c2pa.get("multiplier", 1.0)),
         "clip_probe_score": clip_score,
         "npr_score": npr_score,
+        "npr_anisotropy": float(npr_res.get("anisotropy_ratio", 1.0)),
         "recon_ai_score": recon_score if recon_score is not None else 0.5,
         "freq_ai_score": freq_score if freq_score is not None else 0.5,
         "latent_grid_score": latent_grid,
