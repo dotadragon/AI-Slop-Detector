@@ -98,68 +98,80 @@ function ConduitSvgDefs() {
   );
 }
 
+function ConduitBaseTracks() {
+  return (
+    <>
+      <line x1="500" y1="0" x2="500" y2="36" stroke="url(#astra-orange-grad)" strokeWidth="3" filter="url(#glow-orange)" />
+      <path d="M 500 36 C 500 110, 166 90, 166 177" stroke="var(--border-hi, #1e293b)" strokeWidth="2" strokeDasharray="4 4" fill="none" />
+      <path d="M 500 36 L 500 177" stroke="var(--border-hi, #1e293b)" strokeWidth="2" strokeDasharray="4 4" fill="none" />
+      <path d="M 500 36 C 500 110, 834 90, 834 177" stroke="var(--border-hi, #1e293b)" strokeWidth="2" strokeDasharray="4 4" fill="none" />
+    </>
+  );
+}
+
+interface ConduitBranchPathsProps {
+  leftPathRef: RefObject<SVGPathElement>;
+  centerPathRef: RefObject<SVGPathElement>;
+  rightPathRef: RefObject<SVGPathElement>;
+  hoveredCard: "text" | "image" | "video" | null;
+  scrollProgress: number;
+}
+
+function ConduitBranchPaths({
+  leftPathRef,
+  centerPathRef,
+  rightPathRef,
+  hoveredCard,
+  scrollProgress,
+}: ConduitBranchPathsProps) {
+  const isLeft = hoveredCard === "text" || scrollProgress > 0.05;
+  const isCenter = hoveredCard === "image" || scrollProgress > 0.05;
+  const isRight = hoveredCard === "video" || scrollProgress > 0.05;
+  return (
+    <>
+      <path ref={leftPathRef} d="M 500 36 C 500 110, 166 90, 166 177" className={`conduit-branch-path conduit-pulse-path ${isLeft ? "active" : ""}`} stroke="url(#line-gradient)" strokeWidth="2.5" filter="url(#glow-orange)" fill="none" />
+      <path ref={centerPathRef} d="M 500 36 L 500 177" className={`conduit-branch-path conduit-pulse-path ${isCenter ? "active" : ""}`} stroke="url(#line-gradient)" strokeWidth="2.5" filter="url(#glow-orange)" fill="none" />
+      <path ref={rightPathRef} d="M 500 36 C 500 110, 834 90, 834 177" className={`conduit-branch-path conduit-pulse-path ${isRight ? "active" : ""}`} stroke="url(#line-gradient)" strokeWidth="2.5" filter="url(#glow-orange)" fill="none" />
+    </>
+  );
+}
+
+function ConduitEnergyStreams({ scrollProgress }: { scrollProgress: number }) {
+  const streamStyle = { opacity: scrollProgress > 0.05 ? 0.9 : 0, transition: "opacity 0.2s ease" };
+  return (
+    <>
+      <path d="M 500 36 C 500 110, 166 90, 166 177" className="conduit-energy-stream" fill="none" style={streamStyle} />
+      <path d="M 500 36 L 500 177" className="conduit-energy-stream" fill="none" style={streamStyle} />
+      <path d="M 500 36 C 500 110, 834 90, 834 177" className="conduit-energy-stream" fill="none" style={streamStyle} />
+    </>
+  );
+}
+
+function ConduitTerminalNodes({ scrollProgress }: { scrollProgress: number }) {
+  const nodeStyle = { opacity: scrollProgress >= 0.9 ? Math.min(1, (scrollProgress - 0.9) / 0.1) : 0, transition: "opacity 0.2s ease" };
+  return (
+    <>
+      <circle cx="166" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" style={nodeStyle} />
+      <circle cx="500" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" style={nodeStyle} />
+      <circle cx="834" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" style={nodeStyle} />
+    </>
+  );
+}
+
 function ConduitSplittingSvg({
   leftPathRef,
   centerPathRef,
   rightPathRef,
   hoveredCard,
   scrollProgress,
-}: {
-  leftPathRef: RefObject<SVGPathElement>;
-  centerPathRef: RefObject<SVGPathElement>;
-  rightPathRef: RefObject<SVGPathElement>;
-  hoveredCard: "text" | "image" | "video" | null;
-  scrollProgress: number;
-}) {
-  const isLeftActive = hoveredCard === "text" || scrollProgress > 0.05;
-  const isCenterActive = hoveredCard === "image" || scrollProgress > 0.05;
-  const isRightActive = hoveredCard === "video" || scrollProgress > 0.05;
-
+}: ConduitBranchPathsProps) {
   return (
     <svg className="conduit-svg-container" viewBox="0 0 1000 180" preserveAspectRatio="none" aria-hidden="true">
       <ConduitSvgDefs />
-
-      <line x1="500" y1="0" x2="500" y2="36" stroke="url(#astra-orange-grad)" strokeWidth="3" filter="url(#glow-orange)" />
-
-      <path d="M 500 36 C 500 110, 166 90, 166 177" stroke="var(--border-hi, #1e293b)" strokeWidth="2" strokeDasharray="4 4" fill="none" />
-      <path d="M 500 36 L 500 177" stroke="var(--border-hi, #1e293b)" strokeWidth="2" strokeDasharray="4 4" fill="none" />
-      <path d="M 500 36 C 500 110, 834 90, 834 177" stroke="var(--border-hi, #1e293b)" strokeWidth="2" strokeDasharray="4 4" fill="none" />
-
-      <path
-        ref={leftPathRef}
-        d="M 500 36 C 500 110, 166 90, 166 177"
-        className={`conduit-branch-path conduit-pulse-path ${isLeftActive ? "active" : ""}`}
-        stroke="url(#line-gradient)"
-        strokeWidth="2.5"
-        filter="url(#glow-orange)"
-        fill="none"
-      />
-      <path
-        ref={centerPathRef}
-        d="M 500 36 L 500 177"
-        className={`conduit-branch-path conduit-pulse-path ${isCenterActive ? "active" : ""}`}
-        stroke="url(#line-gradient)"
-        strokeWidth="2.5"
-        filter="url(#glow-orange)"
-        fill="none"
-      />
-      <path
-        ref={rightPathRef}
-        d="M 500 36 C 500 110, 834 90, 834 177"
-        className={`conduit-branch-path conduit-pulse-path ${isRightActive ? "active" : ""}`}
-        stroke="url(#line-gradient)"
-        strokeWidth="2.5"
-        filter="url(#glow-orange)"
-        fill="none"
-      />
-
-      <path d="M 500 36 C 500 110, 166 90, 166 177" className="conduit-energy-stream" fill="none" />
-      <path d="M 500 36 L 500 177" className="conduit-energy-stream" fill="none" />
-      <path d="M 500 36 C 500 110, 834 90, 834 177" className="conduit-energy-stream" fill="none" />
-
-      <circle cx="166" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" />
-      <circle cx="500" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" />
-      <circle cx="834" cy="177" r="5" fill="#ffaa00" stroke="#ff5500" strokeWidth="1.5" filter="url(#glow-orange)" />
+      <ConduitBaseTracks />
+      <ConduitBranchPaths leftPathRef={leftPathRef} centerPathRef={centerPathRef} rightPathRef={rightPathRef} hoveredCard={hoveredCard} scrollProgress={scrollProgress} />
+      <ConduitEnergyStreams scrollProgress={scrollProgress} />
+      <ConduitTerminalNodes scrollProgress={scrollProgress} />
     </svg>
   );
 }
@@ -178,7 +190,7 @@ export function ConduitSection({
       <h2 className="sr-only">Forensic Modalities</h2>
 
       <div className="conduit-spine-stem">
-        <div className={`conduit-reactor-node ${scrollProgress > 0.15 ? "active" : ""}`}>
+        <div className={`conduit-reactor-node ${scrollProgress > 0.05 ? "active" : ""}`}>
           <div className="conduit-node-core" />
           <div className="conduit-node-ring" />
         </div>

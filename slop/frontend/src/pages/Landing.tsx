@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useSeo } from "../hooks/useSeo";
-import { useLandingScroll } from "../hooks/useLandingScroll";
+import { useLandingScroll } from "./landing/useLandingScroll";
 import { HeroSection } from "../components/landing/HeroSection";
 import { ConduitSection } from "../components/landing/ConduitSection";
 import { ForensicInspector } from "../components/landing/ForensicInspector";
