@@ -101,14 +101,8 @@ def load_clip_probe(device: str | None = None) -> tuple[Any, Any, Any, str]:
     model.to(torch.device(target_device)).eval()
 
     # Load trained probe weights if available
-    base = Path(__file__).resolve()
-    probe_path = base.parents[4] / "Model" / "fusion" / "clip_probe.pkl"
-    if not probe_path.exists():
-        for parent in base.parents:
-            candidate = parent / "Model" / "fusion" / "clip_probe.pkl"
-            if candidate.exists():
-                probe_path = candidate
-                break
+    from app.ml.fusion import resolve_fusion_dir
+    probe_path = resolve_fusion_dir() / "clip_probe.pkl"
     weights = None
     if probe_path.exists():
         try:
@@ -125,7 +119,7 @@ def load_clip_probe(device: str | None = None) -> tuple[Any, Any, Any, str]:
     return proc, model, weights, target_device
 
 
-def compute_clip_probe_score(image: Image.Image, file_name: str | None = None) -> dict[str, Any]:
+def compute_clip_probe_score(image: Image.Image, file_name: str | None = None, latent_grid_score: float | None = None) -> dict[str, Any]:
     """
     Executes live forward pass through CLIP-ViT-L/14 to extract normalized vision embedding
     and computes linear probe AI probability.
@@ -158,8 +152,7 @@ def compute_clip_probe_score(image: Image.Image, file_name: str | None = None) -
         if weights is not None and "weights" in weights:
             w = weights["weights"]
             dot = float(np.dot(embed_vec, w))
-            from app.ml.image_detector import _latent_grid_detector
-            latent_grid = _latent_grid_detector(image)
+            latent_grid = float(latent_grid_score) if latent_grid_score is not None else 0.0
             is_png = (getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png"))
 
             # Cosine margin & scaled dot product (Step 2):

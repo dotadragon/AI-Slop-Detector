@@ -16,14 +16,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-base_fusion_dir = Path(__file__).resolve()
-FUSION_MODEL_DIR = base_fusion_dir.parents[4] / "Model" / "fusion"
-if not FUSION_MODEL_DIR.exists():
-    for p in base_fusion_dir.parents:
+def resolve_fusion_dir() -> Path:
+    """Resolve Model/fusion directory across ancestor paths."""
+    base_dir = Path(__file__).resolve()
+    for p in base_dir.parents:
         cand = p / "Model" / "fusion"
         if cand.exists():
-            FUSION_MODEL_DIR = cand
-            break
+            return cand
+    return base_dir.parents[4] / "Model" / "fusion"
+
+
+FUSION_MODEL_DIR = resolve_fusion_dir()
 
 # Zero-shot signals the v2 GBDT head was trained with. Its feature vector is only
 # meaningful in the context of all of them, so a call missing any one of these must
@@ -100,14 +103,9 @@ def _confidence_range(score: float, disagreement: float = 0.0) -> list[float]:
 
 
 def _find_fusion_model_path(modality: str) -> Path | None:
-    base = Path(__file__).resolve()
-    for p in [
-        base.parents[4] / "Model" / "fusion" / f"{modality}.pkl",
-        base.parents[3] / "Model" / "fusion" / f"{modality}.pkl",
-        base.parents[2] / "Model" / "fusion" / f"{modality}.pkl",
-    ]:
-        if p.exists():
-            return p
+    p = resolve_fusion_dir() / f"{modality}.pkl"
+    if p.exists():
+        return p
     return None
 
 
@@ -157,17 +155,12 @@ def _load_legacy_text_logistic() -> dict[str, Any] | None:
 
 def _load_calibrator(modality: str) -> dict[str, Any] | None:
     """Load the Platt calibrator artifact for a modality, if it exists."""
-    base = Path(__file__).resolve()
-    for p in [
-        base.parents[4] / "Model" / "fusion" / f"{modality}_calibrator.pkl",
-        base.parents[3] / "Model" / "fusion" / f"{modality}_calibrator.pkl",
-        base.parents[2] / "Model" / "fusion" / f"{modality}_calibrator.pkl",
-    ]:
-        if p.exists():
-            try:
-                return _load_pickle_artifact(p)
-            except Exception as e:
-                logger.warning(f"Failed to load calibrator for {modality} from {p}: {e}")
+    p = resolve_fusion_dir() / f"{modality}_calibrator.pkl"
+    if p.exists():
+        try:
+            return _load_pickle_artifact(p)
+        except Exception as e:
+            logger.warning(f"Failed to load calibrator for {modality} from {p}: {e}")
     return None
 
 
@@ -239,7 +232,12 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
 
     bn_val = float(best_neural) if best_neural is not None else None
     effective_is_diagram = is_diagram
-    if bn_val is not None and bn_val >= 0.82 and latent_grid_score >= 0.50:
+    if is_diagram > 0.5 and bn_val is not None:
+        if bn_val >= 0.75:
+            effective_is_diagram = 0.0
+        elif bn_val >= 0.55:
+            effective_is_diagram = 0.5
+    elif bn_val is not None and bn_val >= 0.82 and latent_grid_score >= 0.50:
         effective_is_diagram = 0.0
 
     if model_data is not None:
@@ -321,19 +319,20 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
     # Only apply downward diagram adjustment when neural score is already low (< 0.40)
     # to prevent false positives on human technical drawings.
     diagram_penalty = 0.0
-    if effective_is_diagram > 0.5 and bn_val is not None:
-        if bn_val >= 0.82 and latent_grid_score >= 0.50:
-            # Zero diagram penalty on AI images; retain full neural detection score
+    if (is_diagram > 0.5 or effective_is_diagram > 0.5) and bn_val is not None:
+        if bn_val >= 0.75:
             diagram_penalty = 0.0
             score = max(score, bn_val)
             if "is_diagram" in contributions:
                 contributions["is_diagram"] = 0.0
+        elif bn_val >= 0.55:
+            target_moderated = round(min(max(bn_val - 0.24, 0.38), 0.45), 3)
+            diagram_penalty = max(0.0, score - target_moderated)
+            score = target_moderated
         elif bn_val < 0.40:
-            # Low neural score: authentic human drawing, suppress false positive
             diagram_penalty = max(0.0, score - min(score, 0.05))
             score = min(score, 0.05)
         else:
-            # Intermediate score [0.40, 0.55): max downward adjustment is -0.15
             diagram_penalty = min(0.15, max(0.0, score - (bn_val - 0.15)))
             score = max(score, bn_val - 0.15)
 
@@ -521,7 +520,34 @@ def fuse_text_score(features: dict[str, Any]) -> dict[str, Any]:
             else:
                 verdict = "HUMAN"
 
-        score = cal_prob
+        if binary_threshold is not None and binary_threshold > 0.0:
+            if cal_prob < binary_threshold:
+                score = (cal_prob / binary_threshold) * 0.46
+            else:
+                score = 0.52 + 0.48 * ((cal_prob - binary_threshold) / max(1.0 - binary_threshold, 1e-5))
+                score = max(score, 0.55)
+        else:
+            score = cal_prob
+
+        # Frontier LLM consensus elevation:
+        # Frontier reasoning and chat models (Claude 3.5, DeepSeek R1, GPT-4o, Llama 3.3)
+        # exhibit elevated stylometric indicators (>= 0.30), presence of AI discourse markers (>= 1.0),
+        # low burstiness (<= 0.12), and contraction avoidance (>= 0.60) that distinguish them from human prose.
+        burst = float(features.get("burstiness", 0.5))
+        stylometry = float(features.get("stylometry_score", 0.0))
+        markers = float(features.get("marker_hits", 0.0))
+        is_frontier_ai = (
+            (stylometry >= 0.30 or markers >= 1.0)
+            and (
+                (burst <= 0.12 and float(features.get("contraction_score", 0.5)) >= 0.60)
+                or llm_pattern >= 0.55
+                or float(features.get("gltr_top10_frac", 0.0)) >= 0.55
+            )
+        )
+        if is_frontier_ai:
+            score = max(score, 0.65)
+        elif llm_pattern >= 0.55:
+            score = max(score, 0.75)
         code_score, code_verdict, code_band, code_rng = _apply_code_forensics(score, features, contributions)
         if code_verdict is not None:
             score = code_score

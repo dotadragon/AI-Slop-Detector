@@ -1355,6 +1355,8 @@ def analyze_text(text: str) -> dict:
         "transformer_prob": transformer_prob if transformer_prob is not None else (mp if mp is not None else 0.0),
         "neural_prob": mp,
         "heuristic_score": heuristic_score,
+        "stylometry_score": float(h["signals"].get("stylometry_score", 0.0)),
+        "marker_hits": float(h["signals"].get("marker_hits", 0.0)),
         "llm_pattern_score": llm_pattern_score,
         "transitional_entropy": h["signals"].get("transitional_entropy_variance", 0.5),
         "burstiness": h["signals"].get("burstiness", 0.5),

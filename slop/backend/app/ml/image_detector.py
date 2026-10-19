@@ -770,7 +770,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
 
     # v3.5: CLIP-ViT-L/14 linear probe (Ojha et al. universal fake detector)
     from app.ml.clip_probe import compute_clip_probe_score
-    clip_res = compute_clip_probe_score(image, file_name=file_name)
+    clip_res = compute_clip_probe_score(image, file_name=file_name, latent_grid_score=latent_grid)
     clip_score = clip_res.get("clip_probe_score")
 
     # v3.6: DIRE-style diffusion reconstruction error (Phase 7 corroborating signal).

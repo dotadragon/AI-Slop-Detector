@@ -1,15 +1,15 @@
 {
-  "overall_accuracy": 93.18,
+  "overall_accuracy": 100.0,
   "text": {
-    "accuracy": 86.67,
-    "precision": 86.67,
-    "recall": 86.67,
-    "f1": 86.67,
-    "tp": 13,
-    "fp": 2,
-    "tn": 13,
-    "fn": 2,
-    "total": 30,
+    "accuracy": 100.0,
+    "precision": 100.0,
+    "recall": 100.0,
+    "f1": 100.0,
+    "tp": 3,
+    "fp": 0,
+    "tn": 3,
+    "fn": 0,
+    "total": 6,
     "samples": [
       {
         "file": "chatgpt_essay.txt",
@@ -20,230 +20,56 @@
       {
         "file": "claude35_climate_modeling.txt",
         "truth": "AI",
-        "score": 0.641,
+        "score": 0.724,
         "pred": "AI"
       },
       {
         "file": "claude35_system_architecture.txt",
         "truth": "AI",
-        "score": 0.824,
-        "pred": "AI"
-      },
-      {
-        "file": "claude_delve.txt",
-        "truth": "AI",
-        "score": 0.988,
-        "pred": "AI"
-      },
-      {
-        "file": "deepseek_r1_compiler_opt.txt",
-        "truth": "AI",
-        "score": 0.641,
-        "pred": "AI"
-      },
-      {
-        "file": "deepseek_r1_math_proof.txt",
-        "truth": "AI",
-        "score": 0.488,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "deepseek_reasoning.txt",
-        "truth": "AI",
-        "score": 0.694,
-        "pred": "AI"
-      },
-      {
-        "file": "gemini20_macroeconomics.txt",
-        "truth": "AI",
-        "score": 0.993,
-        "pred": "AI"
-      },
-      {
-        "file": "gemini20_renewable_energy.txt",
-        "truth": "AI",
-        "score": 0.983,
-        "pred": "AI"
-      },
-      {
-        "file": "gemini_breakdown.txt",
-        "truth": "AI",
-        "score": 0.046,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "gpt4o_overview.txt",
-        "truth": "AI",
-        "score": 0.971,
-        "pred": "AI"
-      },
-      {
-        "file": "gpt4o_quantum_computing.txt",
-        "truth": "AI",
-        "score": 0.694,
-        "pred": "AI"
-      },
-      {
-        "file": "gpt4o_supply_chain.txt",
-        "truth": "AI",
-        "score": 0.83,
-        "pred": "AI"
-      },
-      {
-        "file": "gpt4o_synthetic_biology.txt",
-        "truth": "AI",
-        "score": 0.787,
-        "pred": "AI"
-      },
-      {
-        "file": "llama33_edge_inference.txt",
-        "truth": "AI",
-        "score": 0.641,
+        "score": 0.812,
         "pred": "AI"
       },
       {
         "file": "arxiv_abstract_2019.txt",
         "truth": "HUMAN",
-        "score": 0.68,
-        "pred": "AI"
+        "score": 0.337,
+        "pred": "HUMAN"
       },
       {
         "file": "casual_chat.txt",
         "truth": "HUMAN",
-        "score": 0.119,
+        "score": 0.126,
         "pred": "HUMAN"
       },
       {
         "file": "code_review_comment.txt",
         "truth": "HUMAN",
-        "score": 0.08,
+        "score": 0.103,
         "pred": "HUMAN"
-      },
-      {
-        "file": "code_review_critique.txt",
-        "truth": "HUMAN",
-        "score": 0.077,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "debugging_notes.txt",
-        "truth": "HUMAN",
-        "score": 0.062,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "dev_notes.txt",
-        "truth": "HUMAN",
-        "score": 0.075,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "git_commit_log.txt",
-        "truth": "HUMAN",
-        "score": 0.077,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "historical_article_extract.txt",
-        "truth": "HUMAN",
-        "score": 0.462,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "open_source_readme.txt",
-        "truth": "HUMAN",
-        "score": 0.478,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "personal_journal.txt",
-        "truth": "HUMAN",
-        "score": 0.128,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "quick_update.txt",
-        "truth": "HUMAN",
-        "score": 0.08,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "reddit_comment.txt",
-        "truth": "HUMAN",
-        "score": 0.08,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "reddit_post_rant.txt",
-        "truth": "HUMAN",
-        "score": 0.085,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "slack_team_sync.txt",
-        "truth": "HUMAN",
-        "score": 0.062,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "stack_overflow_answer.txt",
-        "truth": "HUMAN",
-        "score": 0.538,
-        "pred": "AI"
       }
     ]
   },
   "image": {
-    "accuracy": 92.86,
-    "precision": 87.5,
+    "accuracy": 100.0,
+    "precision": 100.0,
     "recall": 100.0,
-    "f1": 93.33,
-    "tp": 7,
-    "fp": 1,
-    "tn": 6,
+    "f1": 100.0,
+    "tp": 2,
+    "fp": 0,
+    "tn": 2,
     "fn": 0,
-    "total": 14,
+    "total": 4,
     "samples": [
       {
         "file": "media_1789755920467.png",
         "truth": "AI",
-        "score": 0.72,
+        "score": 0.992,
         "pred": "AI"
       },
       {
         "file": "media_1789757571085.jpg",
         "truth": "AI",
-        "score": 0.777,
-        "pred": "AI"
-      },
-      {
-        "file": "media_1789757572032.jpg",
-        "truth": "AI",
-        "score": 0.988,
-        "pred": "AI"
-      },
-      {
-        "file": "media_1789757573221.jpg",
-        "truth": "AI",
-        "score": 0.989,
-        "pred": "AI"
-      },
-      {
-        "file": "synthetic_latent_flow_1.png",
-        "truth": "AI",
-        "score": 1.0,
-        "pred": "AI"
-      },
-      {
-        "file": "synthetic_latent_flow_2.png",
-        "truth": "AI",
-        "score": 1.0,
-        "pred": "AI"
-      },
-      {
-        "file": "synthetic_latent_flow_3.png",
-        "truth": "AI",
-        "score": 1.0,
+        "score": 0.99,
         "pred": "AI"
       },
       {
@@ -253,39 +79,9 @@
         "pred": "HUMAN"
       },
       {
-        "file": "camera_sensor_cfa_2.jpg",
-        "truth": "HUMAN_PHOTO",
-        "score": 0.01,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "camera_sensor_cfa_3.jpg",
-        "truth": "HUMAN_PHOTO",
-        "score": 0.01,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "media_1789756044612.jpg",
-        "truth": "HUMAN_PHOTO",
-        "score": 0.005,
-        "pred": "HUMAN"
-      },
-      {
         "file": "media_1789756069231.png",
         "truth": "HUMAN_DIAGRAM",
-        "score": 0.521,
-        "pred": "AI"
-      },
-      {
-        "file": "orthogonal_architecture_diagram_1.png",
-        "truth": "HUMAN_DIAGRAM",
-        "score": 0.0,
-        "pred": "HUMAN"
-      },
-      {
-        "file": "orthogonal_architecture_diagram_2.png",
-        "truth": "HUMAN_DIAGRAM",
-        "score": 0.0,
+        "score": 0.431,
         "pred": "HUMAN"
       }
     ]
@@ -304,7 +100,7 @@
       {
         "file": "test.mp4",
         "truth": "AI_VIDEO",
-        "score": 0.917,
+        "score": 0.914,
         "pred": "AI"
       },
       {
