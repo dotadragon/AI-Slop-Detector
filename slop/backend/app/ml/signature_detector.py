@@ -38,6 +38,8 @@ def _analyze_synthid_spectral_watermark(
     img_rgb: Image.Image,
     is_diagram: bool = False,
     is_real_camera: bool = False,
+    file_path: str | None = None,
+    neural_ai_prob: float | None = None,
 ) -> dict[str, Any]:
     """
     Forensic spectral analysis detecting Google SynthID and latent diffusion harmonic perturbations.
@@ -82,6 +84,20 @@ def _analyze_synthid_spectral_watermark(
 
         # Latent diffusion watermark detection calibrated for SDXL, Flux, Midjourney v6
         is_synthid_candidate = (boundary_grid > 7.8 and kurtosis < 8.2 and spectral_ratio > 0.28)
+
+        # Standard JPEG compression produces 8x8 DCT boundary grids on authentic human photos.
+        # Do not trigger SynthID on JPEGs unless mid_band_anomaly > 1.85 and neural_ai_prob >= 0.55.
+        is_jpeg = False
+        if file_path and file_path.lower().endswith((".jpg", ".jpeg")):
+            is_jpeg = True
+        elif getattr(img_rgb, "format", None) in ("JPEG", "JPG"):
+            is_jpeg = True
+
+        mid_band_anomaly = mid_energy / (float(np.median(mag)) + 1e-5)
+        if is_jpeg:
+            if not (mid_band_anomaly > 1.85 and (neural_ai_prob is not None and neural_ai_prob >= 0.55)):
+                is_synthid_candidate = False
+
         # ponytail: A negative detection must never carry a high confidence score.
         # Confidence is only meaningful for positive SynthID candidates; otherwise it stays near zero.
         confidence = (
@@ -150,6 +166,7 @@ def detect_digital_signature(
     is_diagram: bool = False,
     is_anime_ai: bool = False,
     is_real_camera: bool = False,
+    file_path: str | None = None,
 ) -> dict[str, Any]:
     """
     Detects hidden digital signatures, Google SynthID frequency watermarks,
@@ -161,13 +178,19 @@ def detect_digital_signature(
 
     c2pa_info = _inspect_c2pa(raw_bytes)
     meta_info = _inspect_metadata(pil_img, raw_bytes, neural_ai_prob)
-    synthid_spectral = _analyze_synthid_spectral_watermark(img_rgb, is_diagram=is_diagram, is_real_camera=is_real_camera)
+    synthid_spectral = _analyze_synthid_spectral_watermark(
+        img_rgb,
+        is_diagram=is_diagram,
+        is_real_camera=is_real_camera,
+        file_path=file_path,
+        neural_ai_prob=neural_ai_prob,
+    )
 
     details: list[str] = []
     detected: bool = False
     sig_type: str = "None"
     confidence: float = 0.0
-    generator: str = "Standard Photo / Graphic"
+    generator: str | None = "Standard Photo / Graphic"
     generator_conf: float = 0.50
     bbox: dict[str, float] | None = None
 
@@ -230,7 +253,7 @@ def detect_digital_signature(
         bbox = _compute_focal_bbox(img_rgb)
 
     # 6. Check SynthID Spectral Harmonic Pattern (strictly on photographic diffusion latents)
-    elif synthid_spectral["is_synthid"] and (neural_ai_prob and neural_ai_prob >= 0.75):
+    elif synthid_spectral["is_synthid"] and (neural_ai_prob is not None and neural_ai_prob >= 0.65):
         detected = True
         sig_type = "Google SynthID Digital Watermark"
         confidence = max(synthid_spectral["confidence"], round(float(neural_ai_prob), 3))

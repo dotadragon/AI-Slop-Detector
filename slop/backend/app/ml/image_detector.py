@@ -1,3 +1,4 @@
+# ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
 """
 SLOP Image Detector v3.0 — Production-grade multi-tier AI image forensics.
 - Fixed model path resolution (was off by one parent level)
@@ -157,44 +158,62 @@ def _cfa_score(image: Image.Image) -> float:
     Real cameras use Bayer CFA (RGGB) that leaves detectable interpolation patterns.
     AI images have NO CFA pattern because they were never captured by a sensor."""
     try:
-        rgb = np.array(image.convert("RGB").resize((512, 512)), dtype=np.float32)
-        green = rgb[:, :, 1]
+        rgb_arr = np.array(image.convert("RGB"), dtype=np.float32)
+        h, w, _ = rgb_arr.shape
+        crop_h, crop_w = min(h, 512), min(w, 512)
+        start_y = (h - crop_h) // 2
+        start_x = (w - crop_w) // 2
+        crop = rgb_arr[start_y:start_y + crop_h, start_x:start_x + crop_w]
+        green = crop[:, :, 1]
 
-        # Extract Bayer pattern periodicity from green channel
-        # Real cameras: green channel has 2x2 periodic structure from CFA interpolation
+        # Extract Bayer pattern periodicity from green channel at native 1:1 resolution
         fft_green = np.fft.fftshift(np.fft.fft2(green))
         mag = np.abs(fft_green)
 
-        h, w = mag.shape
-        cy, cx = h // 2, w // 2
+        ch, cw = mag.shape
+        cy, cx = ch // 2, cw // 2
+        quarter_h, quarter_w = ch // 4, cw // 4
 
-        # Check for CFA peaks at Nyquist/2 positions (characteristic of Bayer pattern)
-        # These peaks appear at (N/4, N/4) offsets from center in real camera images
-        quarter_h, quarter_w = h // 4, w // 4
-        peak_regions = [
-            mag[cy - quarter_h - 5:cy - quarter_h + 5, cx - quarter_w - 5:cx - quarter_w + 5],
-            mag[cy - quarter_h - 5:cy - quarter_h + 5, cx + quarter_w - 5:cx + quarter_w + 5],
-            mag[cy + quarter_h - 5:cy + quarter_h + 5, cx - quarter_w - 5:cx - quarter_w + 5],
-            mag[cy + quarter_h - 5:cy + quarter_h + 5, cx + quarter_w - 5:cx + quarter_w + 5],
+        peak_centers = [
+            (cy - quarter_h, cx - quarter_w),
+            (cy - quarter_h, cx + quarter_w),
+            (cy + quarter_h, cx - quarter_w),
+            (cy + quarter_h, cx + quarter_w),
         ]
 
-        # Measure energy at CFA-expected positions vs background
-        cfa_energy = float(np.mean([np.max(r) for r in peak_regions if r.size > 0]))
-        background = float(np.median(mag))
-        cfa_ratio = cfa_energy / max(background, 1e-5)
+        local_ratios = []
+        for py, px in peak_centers:
+            # 21x21 window around expected Bayer center
+            w_start_y = max(0, py - 10)
+            w_end_y = min(ch, py + 11)
+            w_start_x = max(0, px - 10)
+            w_end_x = min(cw, px + 11)
+            window = mag[w_start_y:w_end_y, w_start_x:w_end_x]
+            if window.size == 0:
+                continue
 
-        # Strong CFA peaks = real camera; No peaks = AI
-        # CFA ratio > 3.0 usually indicates real camera
-        if cfa_ratio > 5.0:
-            return 0.05  # Very likely real camera
-        elif cfa_ratio > 3.0:
-            return 0.15  # Probably real camera
-        elif cfa_ratio > 2.0:
-            return 0.40  # Ambiguous
-        elif cfa_ratio > 1.5:
-            return 0.65  # Probably AI
+            max_idx = np.unravel_index(np.argmax(window), window.shape)
+            peak_val = float(window[max_idx])
+
+            my, mx = int(max_idx[0]), int(max_idx[1])
+            annular_mask = np.ones(window.shape, dtype=bool)
+            annular_mask[max(0, my - 2):min(window.shape[0], my + 3), max(0, mx - 2):min(window.shape[1], mx + 3)] = False
+            annular_vals = window[annular_mask]
+
+            annular_bg = float(np.median(annular_vals)) if annular_vals.size > 0 else 1e-5
+            ratio = peak_val / max(annular_bg, 1e-5)
+            local_ratios.append(ratio)
+
+        local_peak_ratio = float(np.mean(local_ratios)) if local_ratios else 1.0
+
+        if local_peak_ratio > 2.3:
+            if local_peak_ratio > 3.0:
+                return 0.05
+            return 0.15
+        elif local_peak_ratio <= 1.9:
+            return 0.65
         else:
-            return 0.80  # Very likely AI (no CFA pattern)
+            return 0.55
 
     except Exception as exc:
         logger.warning("cfa_analysis_failed", error=str(exc), exc_type=type(exc).__name__, operation="cfa_score", modality="image")
@@ -273,7 +292,18 @@ def _latent_grid_detector(image: Image.Image, grid_size: int = 8) -> float:
         return 0.5
 
 
-def _forensic_image_type(image: Image.Image) -> tuple[bool, bool, bool]:
+class ForensicTypeResult(tuple):
+    def __new__(cls, is_diagram: bool, is_anime_ai: bool, is_real_camera: bool, forensic_type: dict[str, Any] | None = None):
+        return super().__new__(cls, (is_diagram, is_anime_ai, is_real_camera))
+
+    def __init__(self, is_diagram: bool, is_anime_ai: bool, is_real_camera: bool, forensic_type: dict[str, Any] | None = None):
+        self.is_diagram = is_diagram
+        self.is_anime_ai = is_anime_ai
+        self.is_real_camera = is_real_camera
+        self.forensic_type = forensic_type or {}
+
+
+def _forensic_image_type(image: Image.Image) -> ForensicTypeResult:
     """
     Extracts forensic category: (is_diagram, is_anime_ai, is_real_camera)
     ponytail: Rung 5 native palette & orthogonal edge check.
@@ -330,7 +360,16 @@ def _forensic_image_type(image: Image.Image) -> tuple[bool, bool, bool]:
     cfa_val = _cfa_score(image)
     is_real_camera = (not is_diagram) and (cfa_val <= 0.25) and (hv_ratio < 0.24)
 
-    return is_diagram, is_anime_ai, is_real_camera
+    forensic_type = {
+        "is_diagram": is_diagram,
+        "is_anime_ai": is_anime_ai,
+        "is_real_camera": is_real_camera,
+        "is_clean_technical_diagram": False,
+    }
+    if is_diagram and flatness >= 0.45 and hv_ratio >= 0.32 and color_ratio < 0.15:
+        forensic_type["is_clean_technical_diagram"] = True
+
+    return ForensicTypeResult(is_diagram, is_anime_ai, is_real_camera, forensic_type)
 
 
 # ============================================================================
@@ -638,7 +677,8 @@ def _gradcam_heatmap(image: Image.Image) -> str | None:
 def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_path: str | None = None, is_video_frame: bool = False) -> dict:
     """v3.0: Multi-tier pipeline with enhanced forensics, explainability, and responsible CFA gating."""
     # Forensic Categorization
-    is_diagram, is_anime_ai, is_real_camera = _forensic_image_type(image)
+    forensic_res = _forensic_image_type(image)
+    is_diagram, is_anime_ai, is_real_camera = forensic_res
 
     # Tier 1: Provenance & EXIF
     exif = _check_exif(image)
@@ -717,6 +757,7 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
         is_diagram=is_diagram,
         is_anime_ai=is_anime_ai,
         is_real_camera=is_real_camera,
+        file_path=file_path,
     )
 
     # v3.4: PRNU (Photo-Response Non-Uniformity) sensor noise floor map
@@ -729,8 +770,8 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
 
     # v3.5: CLIP-ViT-L/14 linear probe (Ojha et al. universal fake detector)
     from app.ml.clip_probe import compute_clip_probe_score
-    clip_res = compute_clip_probe_score(image)
-    clip_score = clip_res.get("clip_probe_score", 0.5)
+    clip_res = compute_clip_probe_score(image, file_name=file_name)
+    clip_score = clip_res.get("clip_probe_score")
 
     # v3.6: DIRE-style diffusion reconstruction error (Phase 7 corroborating signal).
     # DISABLED by default (settings.enable_reconstruction_detector) until benchmarked
@@ -762,6 +803,32 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
     elif multi_crop_prob is not None:
         best_neural = multi_crop_prob
 
+    # Check clean technical diagram disqualification:
+    if forensic_res.forensic_type.get("is_clean_technical_diagram"):
+        if sig_info.get("detected") or (
+            model_prob is not None and model_prob >= 0.82 and
+            multi_crop_prob is not None and multi_crop_prob >= 0.82 and
+            latent_grid >= 0.55
+        ):
+            forensic_res.forensic_type["is_clean_technical_diagram"] = False
+
+    # An image must NOT be flagged is_real_camera = True if it is a lossless PNG
+    # (image_format == "PNG") with no physical camera EXIF (not exif["has_camera_make"])
+    # OR if best_neural >= 0.42 OR latent_grid >= 0.35 OR npr_score >= 0.42.
+    # When exif["has_camera_make"] is True and best_neural < 0.45, preserve is_real_camera = True.
+    has_cam_make = bool(exif.get("has_camera_make", False))
+    is_png = (getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png"))
+
+    effective_real_cam = is_real_camera
+    if is_png:
+        if (not has_cam_make) or (best_neural is not None and best_neural >= 0.42) or (latent_grid >= 0.35) or (npr_score is not None and npr_score >= 0.42):
+            effective_real_cam = False
+    elif best_neural is not None and best_neural >= 0.65:
+        effective_real_cam = False
+
+    if has_cam_make and (best_neural is None or best_neural < 0.45):
+        effective_real_cam = True
+
     # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
     # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
     from app.ml.fusion import fuse_image_score
@@ -778,16 +845,18 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
         # Neural-First Consensus Authority (GEMINI.md Rule 6 & Directive 1):
         # Diagram forensic flag passed to fusion.py (single authority for scoring & constraints)
         "is_diagram": 1.0 if is_diagram else 0.0,
-        "is_real_camera": 1.0 if (is_real_camera and (best_neural is None or best_neural < 0.50)) else 0.0,
-        "is_anime_ai": 1.0 if is_anime_ai else 0.0,
+        "is_real_camera": 1.0 if effective_real_cam else 0.0,
+        "is_anime_ai": 1.0 if (is_anime_ai and not effective_real_cam) else 0.0,
         "signature_detected": 1.0 if sig_info["detected"] else 0.0,
-        "signature_confidence": float(sig_info.get("confidence", 0.0)),
+        "signature_confidence": float(sig_info.get("confidence", 0.0)) if sig_info["detected"] else 0.0,
         "c2pa_verified": 1.0 if c2pa["verified"] else 0.0,
         "c2pa_multiplier": float(c2pa.get("multiplier", 1.0)),
         "clip_probe_score": clip_score,
         "npr_score": npr_score,
         "recon_ai_score": recon_score if recon_score is not None else 0.5,
         "freq_ai_score": freq_score if freq_score is not None else 0.5,
+        "latent_grid_score": latent_grid,
+        "is_clean_technical_diagram": 1.0 if forensic_res.forensic_type.get("is_clean_technical_diagram") else 0.0,
     }
 
     fusion_res = fuse_image_score(fusion_features)
@@ -902,7 +971,8 @@ def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_p
         "generator_attribution": attr_gen,
         "generator_confidence": attr_conf,
         "is_diagram": is_diagram,
-        "is_real_camera": is_real_camera,
+        "is_real_camera": effective_real_cam,
+        "is_clean_technical_diagram": forensic_res.forensic_type.get("is_clean_technical_diagram", False),
         "prnu_sensor_residual_active": True,
         "confidence_band": conf_band,
         "confidence_range": conf_range,

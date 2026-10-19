@@ -16,7 +16,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-FUSION_MODEL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "Model" / "fusion"
+base_fusion_dir = Path(__file__).resolve()
+FUSION_MODEL_DIR = base_fusion_dir.parents[4] / "Model" / "fusion"
+if not FUSION_MODEL_DIR.exists():
+    for p in base_fusion_dir.parents:
+        cand = p / "Model" / "fusion"
+        if cand.exists():
+            FUSION_MODEL_DIR = cand
+            break
 
 # Zero-shot signals the v2 GBDT head was trained with. Its feature vector is only
 # meaningful in the context of all of them, so a call missing any one of these must
@@ -228,10 +235,11 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
     c2pa_verified = float(features.get("c2pa_verified", 0.0))
     clip_probe = features.get("clip_probe_score")
     npr = features.get("npr_score")
+    latent_grid_score = float(features.get("latent_grid_score", 0.0))
 
     bn_val = float(best_neural) if best_neural is not None else None
     effective_is_diagram = is_diagram
-    if bn_val is not None and bn_val >= 0.55:
+    if bn_val is not None and bn_val >= 0.82 and latent_grid_score >= 0.50:
         effective_is_diagram = 0.0
 
     if model_data is not None:
@@ -313,8 +321,8 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
     # Only apply downward diagram adjustment when neural score is already low (< 0.40)
     # to prevent false positives on human technical drawings.
     diagram_penalty = 0.0
-    if is_diagram > 0.5 and bn_val is not None:
-        if bn_val >= 0.55:
+    if effective_is_diagram > 0.5 and bn_val is not None:
+        if bn_val >= 0.82 and latent_grid_score >= 0.50:
             # Zero diagram penalty on AI images; retain full neural detection score
             diagram_penalty = 0.0
             score = max(score, bn_val)

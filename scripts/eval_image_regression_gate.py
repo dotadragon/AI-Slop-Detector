@@ -35,13 +35,33 @@ from app.ml.image_detector import _analyze_pil_image  # noqa: E402
 DEFAULT_BASELINE_PATH = ROOT / "Model" / "fusion" / "image_baseline_verdicts.json"
 AUDIT_LOG_PATH = ROOT / "Model" / "fusion" / "retrain_audit_log.jsonl"
 
-DATASETS = [
+_HELDOUT_ENV = os.environ.get("SLOP_HELDOUT_DIR")
+_HELDOUT_ROOT = Path(_HELDOUT_ENV) if _HELDOUT_ENV else (ROOT.parent / "AISlop_heldout_set")
+
+DATASETS: list[tuple[str, Path, str]] = [
     ("golden/ai", ROOT / "golden_set" / "image" / "ai", "AI"),
     ("golden/diagram", ROOT / "golden_set" / "image" / "diagram", "HUMAN"),
     ("golden/human", ROOT / "golden_set" / "image" / "human", "HUMAN"),
-    ("heldout/ai_sdxl", ROOT / "heldout_set" / "image" / "ai" / "sdxl_proxy", "AI"),
-    ("heldout/human_picsum", ROOT / "heldout_set" / "image" / "human" / "picsum_unsplash", "HUMAN"),
 ]
+
+_local_sdxl = ROOT / "heldout_set" / "image" / "ai" / "sdxl_proxy"
+_local_picsum = ROOT / "heldout_set" / "image" / "human" / "picsum_unsplash"
+
+if _local_sdxl.exists():
+    DATASETS.append(("heldout/ai_sdxl", _local_sdxl, "AI"))
+elif _HELDOUT_ROOT.exists():
+    for split in ["dev", "final"]:
+        cand = _HELDOUT_ROOT / split / "image" / "ai" / "sdxl_proxy"
+        if cand.exists():
+            DATASETS.append(("heldout/ai_sdxl", cand, "AI"))
+
+if _local_picsum.exists():
+    DATASETS.append(("heldout/human_picsum", _local_picsum, "HUMAN"))
+elif _HELDOUT_ROOT.exists():
+    for split in ["dev", "final"]:
+        cand = _HELDOUT_ROOT / split / "image" / "human" / "picsum_unsplash"
+        if cand.exists():
+            DATASETS.append(("heldout/human_picsum", cand, "HUMAN"))
 
 
 def run_evaluation() -> dict[str, dict]:
