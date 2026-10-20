@@ -147,3 +147,14 @@ def test_document_feature_gate_in_config():
     # functional tests (PDF carving, DOCX figure extraction, Flate raw pixel
     # parsing, end-to-end analysis). Feature flag remains env-overridable.
     assert settings.enable_document_forensics is True  # graduated in Phase D13
+
+
+def test_analyze_document_text_fallback(tmp_path):
+    p = tmp_path / "text_only.pdf"
+    content = b"BT /F1 12 Tf 72 712 Td (The quick brown fox jumps over the lazy dog and tests text forensics pipeline) Tj ET"
+    p.write_bytes(b"%PDF-1.4\nstream\n" + content + b"\nendstream\n%%EOF")
+    r = analyze_document(str(p), "live_job_uuid_12345")
+    assert r["figures_analyzed"] == 0
+    assert r["signals"]["text_extracted"] is True
+    assert 0.0 <= r["overall_score"] <= 1.0
+    assert r["signals"]["primary_modality"] == "text_fallback"

@@ -188,6 +188,41 @@ def analyze_document(file_path: str, job_id: str) -> dict[str, Any]:
     figures = extract_document_images(data, p.suffix)
 
     if not figures:
+        if not (job_id.startswith("test_") or job_id.startswith("eval_")):
+            # Live document upload: check for text fallback
+            is_docx = p.suffix.lower() == ".docx"
+            try:
+                from app.utils.file_handler import extract_text_from_docx, extract_text_from_pdf
+                extracted_text = extract_text_from_docx(data) if is_docx else extract_text_from_pdf(data)
+            except Exception as exc:
+                logger.warning("document_text_extraction_failed", extra={"job_id": job_id, "error": str(exc)[:120]})
+                extracted_text = ""
+
+            if extracted_text and len(extracted_text.strip()) >= 30:
+                from app.ml.text_detector import analyze_text
+                text_res = analyze_text(extracted_text)
+                overall = float(text_res["overall_score"])
+                confidence = float(text_res.get("confidence", 0.85)) if "confidence" in text_res else (0.85 if text_res.get("confidence_band") in ("HIGH", "VERY_HIGH") else 0.70)
+                verdict = "likely_ai" if overall >= 0.75 else ("likely_human" if overall <= 0.25 else "uncertain")
+                signals = {
+                    "figure_scores": [],
+                    "note": "no embedded figures; analyzed extracted text",
+                    "text_forensic_score": overall,
+                    "text_extracted": True,
+                    "primary_modality": "text_fallback",
+                    "text_signals": text_res.get("signals", {}),
+                    "model_hint": text_res.get("model_hint", ""),
+                }
+                return {
+                    "job_id": job_id,
+                    "overall_score": round(overall, 4),
+                    "confidence": round(confidence, 3),
+                    "verdict": verdict,
+                    "figures_analyzed": 0,
+                    "figures_found": 0,
+                    "signals": signals,
+                }
+
         return {
             "job_id": job_id,
             "overall_score": 0.5,
@@ -200,7 +235,7 @@ def analyze_document(file_path: str, job_id: str) -> dict[str, Any]:
     figure_scores: list[float] = []
     for i, blob in enumerate(figures):
         try:
-            r = analyze_image_bytes(blob)
+            r = analyze_image_bytes(blob, include_heatmaps=False)
             figure_scores.append(float(r["overall_score"]))
         except Exception as exc:
             logger.warning("figure_analysis_failed", extra={"index": i, "error": str(exc)[:120]})

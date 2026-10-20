@@ -1069,7 +1069,7 @@ def analyze_image(file_path: str) -> dict:
     return _analyze_pil_image(img_rgb, Path(file_path).name, file_path)
 
 
-def analyze_image_bytes(image_bytes: bytes) -> dict:
+def analyze_image_bytes(image_bytes: bytes, include_heatmaps: bool = True) -> dict:
     with Image.open(io.BytesIO(image_bytes)) as img:
         img_rgb = img.convert("RGB")
-    return _analyze_pil_image(img_rgb)
+    return _analyze_pil_image(img_rgb, include_heatmaps=include_heatmaps)
