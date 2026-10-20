@@ -1088,27 +1088,37 @@ def _fine_tuned_model_prob(text: str) -> float | None:
             probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
         return round(float(probs[fake_idx]), 4)
 
-    # Long text: sliding window with 50% overlap
+    # Long text: batched sliding window across up to 8 evenly-spaced chunks
     window_size = 480
     stride = 240
-    chunk_probs = []
+    chunks_tokens = []
     for start in range(0, len(tokens), stride):
-        chunk_tokens = tokens[start:start + window_size]
-        if len(chunk_tokens) < 50:
+        chunk = tokens[start:start + window_size]
+        if len(chunk) < 50:
             break
-        chunk_text = tok.decode(chunk_tokens, skip_special_tokens=True)
-        inputs = tok(chunk_text, return_tensors="pt", truncation=True, max_length=512, padding=True)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        with torch.inference_mode():
-            probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
-        chunk_probs.append(float(probs[fake_idx]))
+        chunks_tokens.append(chunk)
 
-    if not chunk_probs:
+    if not chunks_tokens:
         return None
-    weights = [1.0 / (1 + 0.05 * i) for i in range(len(chunk_probs))]
+
+    max_chunks = 8
+    if len(chunks_tokens) > max_chunks:
+        step = (len(chunks_tokens) - 1) / (max_chunks - 1)
+        selected_chunks = [chunks_tokens[int(round(i * step))] for i in range(max_chunks)]
+    else:
+        selected_chunks = chunks_tokens
+
+    chunk_texts = [tok.decode(c, skip_special_tokens=True) for c in selected_chunks]
+    inputs = tok(chunk_texts, return_tensors="pt", truncation=True, max_length=512, padding=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.inference_mode():
+        logits = model(**inputs).logits
+        probs = torch.softmax(logits, dim=-1)[:, fake_idx].cpu().tolist()
+
+    weights = [1.0 / (1 + 0.05 * i) for i in range(len(probs))]
     total_w = sum(weights)
-    avg = sum(p * w for p, w in zip(chunk_probs, weights)) / total_w
-    return round(avg, 4)
+    avg = sum(p * w for p, w in zip(probs, weights)) / total_w
+    return round(float(avg), 4)
 
 @lru_cache(maxsize=1)
 def _load_model():
@@ -1163,33 +1173,63 @@ def _model_prob(text: str) -> float | None:
             probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
         return round(float(probs[fake_idx]), 4)
 
-    # Long text: sliding window with 50% overlap
+    # Long text: batched sliding window across up to 8 evenly-spaced chunks
     window_size = 480
     stride = 240
-    chunk_probs = []
-
+    chunks_tokens = []
     for start in range(0, len(tokens), stride):
-        chunk_tokens = tokens[start:start + window_size]
-        if len(chunk_tokens) < 50:
+        chunk = tokens[start:start + window_size]
+        if len(chunk) < 50:
             break
-        chunk_text = tok.decode(chunk_tokens, skip_special_tokens=True)
-        inputs = tok(chunk_text, return_tensors="pt", truncation=True, max_length=512, padding=True)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        with torch.inference_mode():
-            probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
-        chunk_probs.append(float(probs[fake_idx]))
+        chunks_tokens.append(chunk)
 
-    if not chunk_probs:
+    if not chunks_tokens:
         return None
-    weights = [1.0 / (1 + 0.05 * i) for i in range(len(chunk_probs))]
+
+    max_chunks = 8
+    if len(chunks_tokens) > max_chunks:
+        step = (len(chunks_tokens) - 1) / (max_chunks - 1)
+        selected_chunks = [chunks_tokens[int(round(i * step))] for i in range(max_chunks)]
+    else:
+        selected_chunks = chunks_tokens
+
+    chunk_texts = [tok.decode(c, skip_special_tokens=True) for c in selected_chunks]
+    inputs = tok(chunk_texts, return_tensors="pt", truncation=True, max_length=512, padding=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.inference_mode():
+        logits = model(**inputs).logits
+        probs = torch.softmax(logits, dim=-1)[:, fake_idx].cpu().tolist()
+
+    weights = [1.0 / (1 + 0.05 * i) for i in range(len(probs))]
     total_w = sum(weights)
-    avg = sum(p * w for p, w in zip(chunk_probs, weights)) / total_w
-    return round(avg, 4)
+    avg = sum(p * w for p, w in zip(probs, weights)) / total_w
+    return round(float(avg), 4)
+
+
+def _fast_stylometric_sentence_prob(sentence: str) -> float:
+    """Fast lightweight stylometric AI probability for sentences beyond the 48-sentence neural cap."""
+    words = sentence.split()
+    n = len(words)
+    if n == 0:
+        return 0.50
+    has_contraction = any(c in sentence.lower() for c in ["'t", "'s", "'re", "'ve", "'m", "'ll", "'d", "can't", "don't", "it's", "won't"])
+    formal_words = ("furthermore", "moreover", "consequently", "pivotal", "delve", "tapestry", "crucial", "comprehensive", "essential", "significant", "demonstrates", "underscores")
+    formal_hits = sum(1 for w in formal_words if w in sentence.lower())
+
+    score = 0.50
+    if has_contraction:
+        score -= 0.15
+    if formal_hits > 0:
+        score += min(0.30, formal_hits * 0.12)
+    if 12 <= n <= 28:
+        score += 0.05
+    return round(max(0.05, min(0.95, score)), 3)
 
 
 def _model_sentence_probs(sentences: list[str]) -> list[float | None]:
     """Per-sentence AI probability.
-    Prefers fine-tuned RAID transformer when available, falling back to base model."""
+    Prefers fine-tuned RAID transformer when available, falling back to base model.
+    Caps neural forward passes to 48 sentences with batch_size=32 and max_length=128 for <2s scans."""
     try:
         tok, model, torch, device = _load_fine_tuned_model()
     except _ModelUnavailable:
@@ -1212,18 +1252,28 @@ def _model_sentence_probs(sentences: list[str]) -> list[float | None]:
     if not valid_sentences:
         return results
 
-    # Batch in chunks of 16 to respect VRAM limit while speeding up forward passes
-    batch_size = 16
-    for b_start in range(0, len(valid_sentences), batch_size):
-        b_sents = valid_sentences[b_start:b_start + batch_size]
-        b_indices = valid_indices[b_start:b_start + batch_size]
-        inputs = tok(b_sents, return_tensors="pt", truncation=True, max_length=512, padding=True)
+    # Cap neural sentences on long documents to 48 sentences with max_length=128 and batch_size=32
+    max_neural_sents = 48
+    neural_sentences = valid_sentences[:max_neural_sents]
+    neural_indices = valid_indices[:max_neural_sents]
+
+    batch_size = 32
+    for b_start in range(0, len(neural_sentences), batch_size):
+        b_sents = neural_sentences[b_start:b_start + batch_size]
+        b_indices = neural_indices[b_start:b_start + batch_size]
+        inputs = tok(b_sents, return_tensors="pt", truncation=True, max_length=128, padding=True)
         inputs = {k: v.to(device) for k, v in inputs.items()}
         with torch.inference_mode():
             logits = model(**inputs).logits
             probs = torch.softmax(logits, dim=-1).cpu().tolist()
         for i_res, p in zip(b_indices, probs):
             results[i_res] = round(float(p[fake_idx]), 3)
+
+    # Fast stylometric estimation for sentences beyond the 48-sentence cap
+    if len(valid_sentences) > max_neural_sents:
+        for idx, s in zip(valid_indices[max_neural_sents:], valid_sentences[max_neural_sents:]):
+            results[idx] = _fast_stylometric_sentence_prob(s)
+
     return results
 
 
@@ -1307,11 +1357,16 @@ def analyze_text(text: str) -> dict:
     transformer_prob = _fine_tuned_model_prob(clean_text)
 
     # v4.0: Perplexity and coherence features for GBDT fusion
-    from app.ml.perplexity import compute_perplexity, compute_coherence
     import math as _math
-    ppl_res = compute_perplexity(clean_text)
+    from app.ml.perplexity import compute_coherence
+    if bino_res.get("lm_perplexity") is not None and not _math.isnan(bino_res["lm_perplexity"]):
+        lm_perplexity = float(bino_res["lm_perplexity"])
+    else:
+        from app.ml.perplexity import compute_perplexity
+        ppl_res = compute_perplexity(clean_text)
+        lm_perplexity = ppl_res["perplexity"] if ppl_res["available"] and not _math.isnan(ppl_res["perplexity"]) else None
+
     coh_res = compute_coherence(clean_text)
-    lm_perplexity = ppl_res["perplexity"] if ppl_res["available"] and not _math.isnan(ppl_res["perplexity"]) else None
     coherence_mean = coh_res["coherence_mean"] if coh_res["available"] and not _math.isnan(coh_res["coherence_mean"]) else 0.0
     coherence_var = coh_res["coherence_var"] if coh_res["available"] and not _math.isnan(coh_res["coherence_var"]) else 0.0
 

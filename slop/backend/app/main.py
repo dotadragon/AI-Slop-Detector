@@ -88,7 +88,8 @@ async def lifespan(app: FastAPI):
     purged = cleanup_expired_uploads()
     if purged > 0:
         logger.info("stale_uploads_purged_on_startup", count=purged)
-    _verify_models_on_startup()
+    import threading
+    threading.Thread(target=_verify_models_on_startup, daemon=True).start()
     logger.info("startup_complete", app=settings.app_name, env=settings.app_env)
     yield
 

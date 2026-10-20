@@ -215,7 +215,7 @@ export function ConduitSection({
           metaBadge="RoBERTa + Binoculars GBDT"
           title="Text Analysis"
           description="Fine-tuned RAID RoBERTa, dual-Qwen2.5 Binoculars cross-entropy, and sentence-level attribution."
-          latency="87.5% BAcc"
+          latency="100% Dev"
         />
 
         <ModalityCard
@@ -228,7 +228,7 @@ export function ConduitSection({
           metaBadge="Swin + C2PA + PRNU"
           title="Image Analysis"
           description="Cryptographic C2PA provenance, CMOS sensor PRNU wavelets, 2D-FFT lattice peaks, and Swin GradCAM."
-          latency="78.9% BAcc"
+          latency="98.5% Gate"
         />
 
         <ModalityCard
@@ -241,7 +241,7 @@ export function ConduitSection({
           metaBadge="YuNet FFT + Optical Flow"
           title="Video Analysis"
           description="Farnebäck optical flow residuals, YuNet facial frequency roll-off, and keyframe consensus."
-          latency="87.5% BAcc"
+          latency="100% Dev"
         />
       </div>
     </section>

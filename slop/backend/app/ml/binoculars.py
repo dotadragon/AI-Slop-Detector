@@ -137,6 +137,7 @@ def _unavailable_result(error: str | None = None) -> dict[str, Any]:
         "fast_z_norm": None,
         "observer_perplexity": None,
         "cross_perplexity": None,
+        "lm_perplexity": None,
         "available": False,
     }
     if error is not None:
@@ -249,5 +250,6 @@ def compute_binoculars_and_curvature(text: str) -> dict[str, Any]:
         "fast_z_norm": round(float(fast_z_norm), 4),
         "observer_perplexity": round(float(observer_ppl), 2),
         "cross_perplexity": round(float(cross_ppl), 2),
+        "lm_perplexity": round(float(math.exp(min(neg_log_likelihood, 15.0))), 2),
         "available": True,
     }

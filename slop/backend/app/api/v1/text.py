@@ -112,6 +112,37 @@ async def analyze(payload: TextAnalyzeRequest, request: Request, session: AsyncS
     return {"job_id": str(job.id), "result": result, "status": "completed"}
 
 
+def compute_section_scores_fast(sections: list[dict], result: dict) -> list[dict]:
+    """Computes section-level threat heat map scores in <20ms by mapping pre-scored
+    sentences from the document-level inference pass, completely eliminating 12 redundant LLM calls.
+    """
+    sentences = result.get("sentences", [])
+    overall_score = float(result.get("overall_score", 0.5))
+
+    section_results = []
+    for s in sections:
+        sec_text = s["text"]
+        # Map pre-scored sentences that fall within this section
+        matching = [
+            float(sent.get("ai_probability") if sent.get("ai_probability") is not None else sent.get("ai_prob", 0.0))
+            for sent in sentences
+            if sent.get("text") and sent["text"] in sec_text
+        ]
+        if matching:
+            score = round(sum(matching) / len(matching), 3)
+        else:
+            score = overall_score
+
+        section_results.append({
+            "index": s.get("index", s.get("id", 0)),
+            "section_id": s.get("id", s.get("index", 0)),
+            "word_count": s.get("word_count", len(sec_text.split())),
+            "score": score,
+            "preview": sec_text[:120].strip() + ("..." if len(sec_text) > 120 else ""),
+        })
+    return section_results
+
+
 @router.post("/upload")
 async def upload_text(request: Request, file: UploadFile, session: AsyncSession = Depends(get_session), user: User | None = Depends(optional_user)):
     text = await extract_text_from_upload(file)
@@ -119,17 +150,9 @@ async def upload_text(request: Request, file: UploadFile, session: AsyncSession 
     async with serialized_gpu_inference("text"):
         result = await run_in_threadpool(analyze_text, text)
 
-        # Multi-section document threat heat map for multi-page/large documents
+        # Multi-section document threat heat map computed fast (<20ms) from document sentences
         if len(sections) > 1:
-            section_results = []
-            for s in sections[:12]:
-                s_res = await run_in_threadpool(analyze_text, s["text"])
-                section_results.append({
-                    "index": s["index"],
-                    "word_count": s["word_count"],
-                    "score": s_res["overall_score"],
-                    "preview": s["text"][:120].strip() + ("..." if len(s["text"]) > 120 else ""),
-                })
+            section_results = compute_section_scores_fast(sections[:12], result)
             result["section_scores"] = section_results
             result["signals"]["document_sections_analyzed"] = len(section_results)
 

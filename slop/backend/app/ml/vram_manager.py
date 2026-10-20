@@ -148,7 +148,8 @@ async def serialized_gpu_inference(modality: str = "general"):
             failed = True
             raise
         finally:
-            evict_gpu_models()
+            if failed:
+                evict_gpu_models()
             record_inference(modality, time.perf_counter() - start, failed=failed)
     finally:
         if acquired:

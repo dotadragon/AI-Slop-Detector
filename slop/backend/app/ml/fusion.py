@@ -350,14 +350,25 @@ def fuse_image_score(features: dict[str, Any]) -> dict[str, Any]:
             diagram_penalty = min(0.15, max(0.0, score - (bn_val - 0.15)))
             score = max(score, bn_val - 0.15)
 
+    is_edited_cam = float(features.get("is_edited_camera_photo", 0.0))
+    if is_edited_cam > 0.5:
+        score = round(min(0.24, max(0.14, 0.13 + 0.10 * heuristic)), 3)
+        contributions["edited_camera_correction"] = round(score - (bn_val or 0.0), 4)
+
     final_score = round(_clamp01(score), 3)
     disagreement = abs(float(best_neural if best_neural is not None else 0.5) - heuristic)
+
+    primary_signal = (
+        "optical_sensor_edited_photo"
+        if is_edited_cam > 0.5
+        else ("neural_vision_transformer" if (best_neural is not None and best_neural >= 0.50) else "forensic_heuristics")
+    )
 
     return {
         "overall_score": final_score,
         "confidence_band": _confidence_band(final_score),
         "confidence_range": _confidence_range(final_score, disagreement),
-        "primary_signal": "neural_vision_transformer" if (best_neural is not None and best_neural >= 0.50) else "forensic_heuristics",
+        "primary_signal": primary_signal,
         "contributions": contributions,
         "signals_missing": signals_missing,
     }

@@ -20,40 +20,47 @@ export function getLockScrollY(el: HTMLElement | null): number | null {
   return Math.max(0, rect.top + scrollY - 56);
 }
 
-function checkResetUpward(scrollY: number, lockY: number, state: LockState): void {
-  if (scrollY < lockY - 120) {
-    state.isPinnedRef.current = false;
-    state.hasCompletedAllRef.current = false;
-    state.setHasCompletedAllStages(false);
-    state.activeLayerRef.current = 0;
-    state.setActiveLayer(0);
-    state.completedStagesRef.current = -1;
-    state.setCompletedStages(-1);
+export function unlockScroll(): void {
+  if (typeof document !== "undefined" && document.body) {
+    document.body.style.overflowY = "";
   }
 }
 
-export function handleScrollClamp(scrollY: number, lockY: number | null, state: LockState): void {
-  if (lockY === null) return;
+function lockScroll(): void {
+  if (typeof document !== "undefined" && document.body) {
+    document.body.style.overflowY = "hidden";
+  }
+}
 
-  if (!state.hasCompletedAllRef.current && scrollY >= lockY) {
+export function handleScrollClamp(
+  el: HTMLElement | null,
+  lockY: number | null,
+  state: LockState,
+): void {
+  if (!el || lockY === null || state.hasCompletedAllRef.current) return;
+
+  const rect = el.getBoundingClientRect();
+  // Check entry into lock zone
+  if (rect.top <= 72 && rect.top >= -140) {
     if (!state.isPinnedRef.current) {
-      state.isPinnedRef.current = true;
-      state.stageStartTimeRef.current = Date.now();
-    }
-    if (scrollY > lockY + 2) {
       window.scrollTo({ top: lockY, behavior: "instant" as ScrollBehavior });
+      state.isPinnedRef.current = true;
+      lockScroll();
+      state.stageStartTimeRef.current = Date.now();
+      state.wheelDeltaAccumRef.current = 0;
     }
   }
-
-  checkResetUpward(scrollY, lockY, state);
 }
 
 function finishAllStages(state: LockState): void {
   state.completedStagesRef.current = 3;
   state.setCompletedStages(3);
+  state.activeLayerRef.current = 3;
+  state.setActiveLayer(3);
   state.hasCompletedAllRef.current = true;
   state.setHasCompletedAllStages(true);
   state.isPinnedRef.current = false;
+  unlockScroll();
 
   const ctaEl = document.getElementById("cta-forensics");
   if (ctaEl) {
@@ -61,126 +68,91 @@ function finishAllStages(state: LockState): void {
   }
 }
 
-function advanceStage(state: LockState): void {
-  state.wheelDeltaAccumRef.current = 0;
-  state.stageStartTimeRef.current = Date.now();
+function handleWheelAction(
+  e: Event,
+  deltaY: number,
+  state: LockState,
+): void {
+  if (!state.isPinnedRef.current || state.hasCompletedAllRef.current) return;
 
-  const current = state.activeLayerRef.current;
-  if (current < 3) {
-    const next = current + 1;
-    state.activeLayerRef.current = next;
-    state.setActiveLayer(next);
-    state.completedStagesRef.current = next - 1;
-    state.setCompletedStages(next - 1);
-  } else {
-    finishAllStages(state);
-  }
-}
-
-function handleWheelDown(e: Event, lockY: number, curY: number, deltaY: number, state: LockState): void {
-  if (state.hasCompletedAllRef.current) return;
-  if (curY + deltaY < lockY - 24) return;
-
-  e.preventDefault();
-  window.scrollTo({ top: lockY, behavior: "instant" as ScrollBehavior });
-
-  if (!state.isPinnedRef.current) {
-    state.isPinnedRef.current = true;
-    state.stageStartTimeRef.current = Date.now();
-    state.wheelDeltaAccumRef.current = 0;
-    return;
-  }
-
-  const now = Date.now();
-  const timeElapsed = now - state.stageStartTimeRef.current;
-  state.wheelDeltaAccumRef.current += Math.abs(deltaY);
-
-  if (timeElapsed >= 550 && state.wheelDeltaAccumRef.current >= 50) {
-    advanceStage(state);
-  }
-}
-
-function retreatStage(state: LockState): void {
-  state.stageStartTimeRef.current = Date.now();
-  state.wheelDeltaAccumRef.current = 0;
-
-  const prev = state.activeLayerRef.current - 1;
-  state.activeLayerRef.current = prev;
-  state.setActiveLayer(prev);
-  state.completedStagesRef.current = prev - 1;
-  state.setCompletedStages(prev - 1);
-}
-
-function handleWheelUp(e: Event, lockY: number, curY: number, state: LockState): void {
-  if (Math.abs(curY - lockY) > 48) return;
-
-  const current = state.activeLayerRef.current;
-  const timeElapsed = Date.now() - state.stageStartTimeRef.current;
-
-  if (current > 0) {
+  // Downward Wheel / Gesture
+  if (deltaY > 0) {
     e.preventDefault();
-    window.scrollTo({ top: lockY, behavior: "instant" as ScrollBehavior });
-    state.hasCompletedAllRef.current = false;
-    state.setHasCompletedAllStages(false);
-    state.isPinnedRef.current = true;
+    const now = Date.now();
+    const elapsed = now - state.stageStartTimeRef.current;
+    if (elapsed < 320) return;
 
-    if (timeElapsed >= 450) {
-      retreatStage(state);
+    state.wheelDeltaAccumRef.current += Math.max(Math.abs(deltaY), 25);
+    if (state.wheelDeltaAccumRef.current >= 40) {
+      state.wheelDeltaAccumRef.current = 0;
+      state.stageStartTimeRef.current = now;
+
+      const current = state.activeLayerRef.current;
+      if (current < 3) {
+        const next = current + 1;
+        state.activeLayerRef.current = next;
+        state.setActiveLayer(next);
+        state.completedStagesRef.current = next - 1;
+        state.setCompletedStages(next - 1);
+      } else {
+        finishAllStages(state);
+      }
     }
     return;
   }
 
-  if (current === 0 && timeElapsed >= 450) {
-    state.isPinnedRef.current = false;
+  // Upward Wheel / Gesture
+  if (deltaY < 0) {
+    e.preventDefault();
+    const now = Date.now();
+    const elapsed = now - state.stageStartTimeRef.current;
+    if (elapsed < 300) return;
+
+    state.stageStartTimeRef.current = now;
+    state.wheelDeltaAccumRef.current = 0;
+
+    const current = state.activeLayerRef.current;
+    if (current > 0) {
+      const prev = current - 1;
+      state.activeLayerRef.current = prev;
+      state.setActiveLayer(prev);
+      state.completedStagesRef.current = prev - 1;
+      state.setCompletedStages(prev - 1);
+    } else {
+      // Stage 0: unlock upward back to cards
+      state.isPinnedRef.current = false;
+      unlockScroll();
+      window.scrollBy({ top: -180, behavior: "smooth" });
+    }
   }
 }
 
-export function onWheelEvent(e: WheelEvent, getLockY: () => number | null, state: LockState): void {
-  const lockY = getLockY();
-  if (lockY === null) return;
-  const curY = window.scrollY || document.documentElement.scrollTop;
-
-  if (e.deltaY > 0) {
-    handleWheelDown(e, lockY, curY, e.deltaY, state);
-  } else if (e.deltaY < 0) {
-    handleWheelUp(e, lockY, curY, state);
-  }
+export function onWheelEvent(e: WheelEvent, state: LockState): void {
+  if (!state.isPinnedRef.current) return;
+  handleWheelAction(e, e.deltaY, state);
 }
 
-export function onKeyEvent(e: KeyboardEvent, getLockY: () => number | null, state: LockState): void {
-  const lockY = getLockY();
-  if (lockY === null) return;
-  const curY = window.scrollY || document.documentElement.scrollTop;
-
-  const isDown = e.key === "ArrowDown" || e.key === "PageDown";
+export function onKeyEvent(e: KeyboardEvent, state: LockState): void {
+  if (!state.isPinnedRef.current) return;
+  const isDown = e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ";
   const isUp = e.key === "ArrowUp" || e.key === "PageUp";
 
   if (isDown) {
-    handleWheelDown(e, lockY, curY, 60, state);
+    handleWheelAction(e, 60, state);
   } else if (isUp) {
-    handleWheelUp(e, lockY, curY, state);
+    handleWheelAction(e, -60, state);
   }
 }
 
 export function onTouchEvent(
   e: TouchEvent,
   startY: number,
-  getLockY: () => number | null,
   state: LockState,
 ): void {
-  if (!e.touches[0]) return;
-  const lockY = getLockY();
-  if (lockY === null) return;
-
-  const curY = window.scrollY || document.documentElement.scrollTop;
+  if (!state.isPinnedRef.current || !e.touches[0]) return;
   const deltaY = startY - e.touches[0].clientY;
   if (Math.abs(deltaY) < 15) return;
-
-  if (deltaY > 0) {
-    handleWheelDown(e, lockY, curY, deltaY, state);
-  } else {
-    handleWheelUp(e, lockY, curY, state);
-  }
+  handleWheelAction(e, deltaY, state);
 }
 
 export function handleStageClick(
@@ -196,10 +168,23 @@ export function handleStageClick(
   state.setCompletedStages(idx - 1);
   state.setActiveLayer(idx);
 
-  const lockY = getLockScrollY(el);
-  if (lockY !== null) {
-    window.scrollTo({ top: lockY, behavior: "smooth" });
-    state.isPinnedRef.current = true;
+  if (idx === 3) {
+    state.hasCompletedAllRef.current = true;
+    state.setHasCompletedAllStages(true);
+    state.isPinnedRef.current = false;
+    unlockScroll();
+  } else {
+    const lockY = getLockScrollY(el);
+    if (lockY !== null) {
+      window.scrollTo({ top: lockY, behavior: "instant" as ScrollBehavior });
+      state.isPinnedRef.current = true;
+      lockScroll();
+    }
   }
   track("cta_clicked", { section: "stepper_dot", stage: layerId });
+}
+
+export function handleSkipInspector(state: LockState): void {
+  finishAllStages(state);
+  track("cta_clicked", { section: "stepper_skip", stage: "skip_all" });
 }

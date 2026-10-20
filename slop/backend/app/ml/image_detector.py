@@ -826,6 +826,22 @@ def _analyze_pil_image(
     has_cam_make = bool(exif.get("has_camera_make", False))
     is_png = (not is_video_frame) and ((getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png")))
 
+    # v4.2: Physical optical sensor neighbor forensics for real camera & color-edited camera detection
+    rg_corr = float(npr_res.get("rg_correlation", 0.5))
+    gb_corr = float(npr_res.get("gb_correlation", 0.5))
+    mean_kurt = float(npr_res.get("mean_kurtosis", 10.0))
+    res_std = float(npr_res.get("residual_std", 0.0))
+
+    has_physical_sensor_couplings = (
+        npr_score is not None and npr_score <= 0.22
+        and rg_corr >= 0.88 and gb_corr >= 0.88
+        and abs(rg_corr - gb_corr) <= 0.08
+        and res_std >= 5.5 and mean_kurt >= 11.0
+        and not is_diagram and not is_anime_ai
+        and latent_grid < 0.42
+    )
+
+    is_edited_camera_photo = False
     effective_real_cam = is_real_camera
     if is_png:
         if (not has_cam_make) or (best_neural is not None and best_neural >= 0.42) or (latent_grid >= 0.35) or (npr_score is not None and npr_score >= 0.42):
@@ -834,6 +850,16 @@ def _analyze_pil_image(
         effective_real_cam = False
 
     if has_cam_make and (best_neural is None or best_neural < 0.45):
+        effective_real_cam = True
+
+    if (
+        not is_png
+        and has_physical_sensor_couplings
+        and (cfa >= 0.10 or dct >= 0.22)
+        and (best_neural is not None and best_neural >= 0.40)
+        and (clip_score is None or clip_score <= 0.60)
+    ):
+        is_edited_camera_photo = True
         effective_real_cam = True
 
     # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
@@ -853,6 +879,7 @@ def _analyze_pil_image(
         # Diagram forensic flag passed to fusion.py (single authority for scoring & constraints)
         "is_diagram": 1.0 if (is_diagram and not (clip_score is not None and clip_score >= 0.50) and not (npr_score is not None and npr_score >= 0.45)) else 0.0,
         "is_real_camera": 1.0 if effective_real_cam else 0.0,
+        "is_edited_camera_photo": 1.0 if is_edited_camera_photo else 0.0,
         "is_anime_ai": 1.0 if (is_anime_ai and not effective_real_cam) else 0.0,
         "signature_detected": 1.0 if sig_info["detected"] else 0.0,
         "signature_confidence": float(sig_info.get("confidence", 0.0)) if sig_info["detected"] else 0.0,
@@ -959,6 +986,16 @@ def _analyze_pil_image(
         attr_gen = None
         attr_conf = 0.0
 
+    if is_edited_camera_photo:
+        heuristic_override_explanation = (
+            f"Real Camera Photo (Edited / Post-Processed): Vision Transformer reacted to surface color grading or contrast edits ({int(round((best_neural or 0)*100))}% AI-like), "
+            f"but physical CMOS sensor neighbor relationships (NPR {int(round(npr_score*100))}%), "
+            f"RGB channel coupling ({rg_corr:.2f}), and optical sensor grain confirm an authentic camera capture with post-processing."
+        )
+        hint = "📷 Authentic camera photograph with color grading, filter, or post-processing edits verified via CMOS sensor pixel couplings."
+        attr_gen = "Authentic Camera Photo (Edited / Post-Processed)"
+        attr_conf = round(1.0 - overall, 3)
+
     signals = {
         "compression_artifact_score": ela,
         "frequency_artifact_score": fft,
@@ -980,6 +1017,8 @@ def _analyze_pil_image(
         "generator_confidence": attr_conf,
         "is_diagram": is_diagram,
         "is_real_camera": effective_real_cam,
+        "is_edited_camera_photo": is_edited_camera_photo,
+        "camera_edit_status": "edited_camera_photo" if is_edited_camera_photo else ("authentic_camera" if effective_real_cam else "unknown"),
         "is_clean_technical_diagram": forensic_res.forensic_type.get("is_clean_technical_diagram", False),
         "prnu_sensor_residual_active": True,
         "confidence_band": conf_band,

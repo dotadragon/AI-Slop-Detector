@@ -89,9 +89,48 @@ function ResultFlow({
   detectionResult: DetectionResult;
   containerRef: React.RefObject<HTMLDivElement>;
 }) {
+  const isEditedCamera = Boolean(detectionResult.signals?.is_edited_camera_photo);
+  const overrideExplanation =
+    detectionResult.heuristic_override_explanation ||
+    (detectionResult.signals?.heuristic_override_explanation as string | undefined);
+
   return (
     <div key="result" ref={containerRef} className="result-container-flow">
-      <ScoreCard score={detectionResult.overall_score} confidence_range={detectionResult.confidence_range} confidence_band={detectionResult.confidence_band} />
+      <ScoreCard
+        score={detectionResult.overall_score}
+        confidence_range={detectionResult.confidence_range}
+        confidence_band={detectionResult.confidence_band}
+        isEditedCamera={isEditedCamera}
+      />
+      {overrideExplanation && (
+        <div
+          className="prominent-override-banner"
+          style={{
+            margin: "12px 0",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            background: isEditedCamera ? "rgba(16, 185, 129, 0.08)" : "rgba(59, 130, 246, 0.08)",
+            border: isEditedCamera ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "4px",
+              color: isEditedCamera ? "#34d399" : "#60a5fa",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+            }}
+          >
+            <span>{isEditedCamera ? "📷 Real Camera Photo (Edited / Color-Graded)" : "⚖️ Forensic Signal Reconciliation"}</span>
+          </div>
+          <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: "1.4", color: "var(--text-secondary, #cbd5e1)" }}>
+            {overrideExplanation}
+          </p>
+        </div>
+      )}
       <CodeVerdictBadge codeResult={detectionResult} />
       <MixedAuthorshipBadge docResult={detectionResult} />
       <TechnicalSignalsDrawer scanResult={detectionResult} />
@@ -101,10 +140,7 @@ function ResultFlow({
       <SentenceHighlight sentences={detectionResult.sentences} />
       <ModelHint
         hint={detectionResult.model_hint}
-        explanation={
-          detectionResult.heuristic_override_explanation ||
-          (detectionResult.signals?.heuristic_override_explanation as string | undefined)
-        }
+        explanation={overrideExplanation}
       />
       <DossierExportAction jobId={detectionResult.job_id} />
     </div>

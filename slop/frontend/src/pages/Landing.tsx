@@ -28,6 +28,7 @@ export function Landing() {
     activeLayer,
     ambientGlowY,
     handleSelectStage,
+    handleSkip,
   } = useLandingScroll({
     conduitRef,
     inspectorRef,
@@ -56,6 +57,7 @@ export function Landing() {
         activeLayer={activeLayer}
         inspectorProgress={inspectorProgress}
         handleSelectStage={handleSelectStage}
+        handleSkip={handleSkip}
       />
       <CtaBanner />
     </main>

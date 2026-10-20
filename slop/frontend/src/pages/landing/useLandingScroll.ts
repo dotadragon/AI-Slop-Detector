@@ -3,6 +3,8 @@ import {
   getLockScrollY,
   handleScrollClamp,
   handleStageClick,
+  handleSkipInspector,
+  unlockScroll,
   onWheelEvent,
   onKeyEvent,
   onTouchEvent,
@@ -82,7 +84,14 @@ function initScrollListener(
   const onScroll = () => {
     const scrollY = window.scrollY || document.documentElement.scrollTop;
     const lockY = getLockScrollY(inspectorRef.current);
-    handleScrollClamp(scrollY, lockY, lockState);
+
+    if (lockState.isPinnedRef.current && lockY !== null) {
+      if (Math.abs(scrollY - lockY) > 2) {
+        window.scrollTo({ top: lockY, behavior: "instant" as ScrollBehavior });
+      }
+    } else {
+      handleScrollClamp(inspectorRef.current, lockY, lockState);
+    }
 
     if (!ticking) {
       requestAnimationFrame(() => {
@@ -95,13 +104,20 @@ function initScrollListener(
 
   updateScrollFrame(paths, lengths, setProgress, setGlowY);
 
-  return attachLandingListeners(
+  const removeListeners = attachLandingListeners(
     onScroll,
-    (e) => onWheelEvent(e, () => getLockScrollY(inspectorRef.current), lockState),
-    (e) => onKeyEvent(e, () => getLockScrollY(inspectorRef.current), lockState),
-    (e) => { touchStartYRef.current = e.touches[0]?.clientY || 0; },
-    (e) => onTouchEvent(e, touchStartYRef.current, () => getLockScrollY(inspectorRef.current), lockState),
+    (e) => onWheelEvent(e, lockState),
+    (e) => onKeyEvent(e, lockState),
+    (e) => {
+      touchStartYRef.current = e.touches[0]?.clientY || 0;
+    },
+    (e) => onTouchEvent(e, touchStartYRef.current, lockState),
   );
+
+  return () => {
+    removeListeners();
+    unlockScroll();
+  };
 }
 
 export function useLandingScroll({
@@ -136,13 +152,22 @@ export function useLandingScroll({
     setHasCompletedAllStages,
   };
 
-  const handleSelectStage = useCallback((idx: number, layerId: string) => {
-    handleStageClick(idx, layerId, inspectorRef.current, lockState);
-  }, [inspectorRef]);
+  const handleSelectStage = useCallback(
+    (idx: number, layerId: string) => {
+      handleStageClick(idx, layerId, inspectorRef.current, lockState);
+    },
+    [inspectorRef],
+  );
+
+  const handleSkip = useCallback(() => {
+    handleSkipInspector(lockState);
+  }, []);
 
   useEffect(() => {
     const paths = [leftPathRef.current, centerPathRef.current, rightPathRef.current];
-    const lengths = paths.map((p, idx) => (p?.getTotalLength ? p.getTotalLength() : idx === 1 ? 141 : 400));
+    const lengths = paths.map((p, idx) =>
+      p?.getTotalLength ? p.getTotalLength() : idx === 1 ? 141 : 400,
+    );
     return initScrollListener(
       inspectorRef,
       paths,
@@ -161,6 +186,7 @@ export function useLandingScroll({
     activeLayer,
     ambientGlowY,
     handleSelectStage,
+    handleSkip,
     completedStages,
     hasCompletedAllStages,
   };

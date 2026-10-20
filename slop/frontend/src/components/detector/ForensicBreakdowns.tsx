@@ -8,6 +8,7 @@ import {
   Scale,
   TrendingDown,
   TrendingUp,
+  Camera,
 } from "lucide-react";
 import type { DetectionResult, GeneratorAttribution, DigitalSignatureInfo } from "../../types";
 
@@ -69,17 +70,36 @@ function PrnuBadge({ active }: { active?: boolean }) {
   );
 }
 
+function EditedCameraBadge({ active }: { active?: boolean }) {
+  if (!active) return null;
+  return (
+    <div
+      className="inference-badge edited-camera"
+      style={{
+        borderColor: "rgba(16, 185, 129, 0.4)",
+        background: "rgba(16, 185, 129, 0.12)",
+        color: "#34d399",
+      }}
+    >
+      <Camera size={14} className="text-emerald-400" />
+      <span>📷 Camera Photo · Post-Processed / Edited</span>
+    </div>
+  );
+}
+
 export function ProvenanceBadge({ signals }: { signals?: Record<string, unknown> }) {
   if (!signals) return null;
   const provenance = typeof signals.provenance === "string" ? signals.provenance : undefined;
   const inferenceMode = typeof signals.inference_mode === "string" ? signals.inference_mode : undefined;
   const isPrnuActive = Boolean(signals.prnu_sensor_residual_active);
+  const isEditedCamera = Boolean(signals.is_edited_camera_photo);
 
   return (
     <div className="provenance-badges">
       <ProvenanceHeader provenance={provenance} />
       <InferenceModeBadge inferenceMode={inferenceMode} />
       <PrnuBadge active={isPrnuActive} />
+      <EditedCameraBadge active={isEditedCamera} />
     </div>
   );
 }

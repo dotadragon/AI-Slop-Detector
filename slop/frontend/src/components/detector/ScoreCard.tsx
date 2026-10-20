@@ -72,9 +72,10 @@ interface ScoreCardProps {
   score: number;
   confidence_range?: number[];
   confidence_band?: string;
+  isEditedCamera?: boolean;
 }
 
-export function ScoreCard({ score, confidence_range }: ScoreCardProps) {
+export function ScoreCard({ score, confidence_range, isEditedCamera }: ScoreCardProps) {
   const pct = Math.round(score * 100);
   const color = scoreColor(score);
   const label = scoreLabel(score);
@@ -92,6 +93,18 @@ export function ScoreCard({ score, confidence_range }: ScoreCardProps) {
             <Icon size={14} />
             <strong>{label}</strong>
           </span>
+          {isEditedCamera && (
+            <span
+              className="score-badge-pill"
+              style={{
+                color: "#34d399",
+                borderColor: "rgba(16, 185, 129, 0.4)",
+                background: "rgba(16, 185, 129, 0.12)",
+              }}
+            >
+              📷 Camera Photo · Post-Processed / Edited
+            </span>
+          )}
         </div>
         <p className="score-subtitle">{formatScoreSubtitle(score, pct)}</p>
         {rangeMin !== null && rangeMax !== null && (

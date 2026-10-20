@@ -10,6 +10,7 @@ interface ForensicInspectorProps {
   activeLayer: number;
   inspectorProgress: number;
   handleSelectStage: (idx: number, layerId: string) => void;
+  handleSkip?: () => void;
 }
 
 function InspectorHudPanel({ currentLayer }: { currentLayer: SpectralLayer }) {
@@ -91,14 +92,57 @@ function StepperDotItem({
   );
 }
 
+function StepperSvgTrack({ lineFillRatio }: { lineFillRatio: number }) {
+  return (
+    <svg className="stepper-dots-track-bg" viewBox="0 0 1000 28" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="125" y1="14" x2="875" y2="14" stroke="var(--border-hi, rgba(255, 255, 255, 0.12))" strokeWidth="3" strokeLinecap="round" />
+      <line
+        className="stepper-dots-track-fill"
+        x1="125"
+        y1="14"
+        x2={125 + lineFillRatio * 750}
+        y2="14"
+        stroke="url(#stepper-track-gradient)"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        style={{ transition: "x2 0.35s cubic-bezier(0.16, 1, 0.3, 1)" }}
+      />
+      <line
+        className="stepper-shimmer-line"
+        x1="125"
+        y1="14"
+        x2={125 + lineFillRatio * 750}
+        y2="14"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        style={{ transition: "x2 0.35s cubic-bezier(0.16, 1, 0.3, 1)" }}
+      />
+      <defs>
+        <linearGradient id="stepper-track-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#10b981" />
+          <stop offset="50%" stopColor="#34d399" />
+          <stop offset="100%" stopColor="#10b981" />
+        </linearGradient>
+        <linearGradient id="stepper-shimmer-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="transparent" stopOpacity="0" />
+          <stop offset="50%" stopColor="#ffffff" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 function InspectorStepper({
   activeLayer,
   inspectorProgress,
   handleSelectStage,
+  handleSkip,
 }: {
   activeLayer: number;
   inspectorProgress: number;
   handleSelectStage: (idx: number, layerId: string) => void;
+  handleSkip?: () => void;
 }) {
   const currentLayer = SPECTRAL_LAYERS[activeLayer];
   const lineFillRatio = Math.max(activeLayer / 3, Math.min(1, inspectorProgress * 1.08));
@@ -106,43 +150,7 @@ function InspectorStepper({
   return (
     <div className="inspector-stepper-wrap" aria-label="Forensic Inspection Stepper">
       <div className="stepper-track-outer">
-        <svg className="stepper-dots-track-bg" viewBox="0 0 1000 28" preserveAspectRatio="none" aria-hidden="true">
-          <line x1="125" y1="14" x2="875" y2="14" stroke="var(--border-hi, rgba(255, 255, 255, 0.12))" strokeWidth="3" strokeLinecap="round" />
-          <line
-            className="stepper-dots-track-fill"
-            x1="125"
-            y1="14"
-            x2={125 + lineFillRatio * 750}
-            y2="14"
-            stroke="url(#stepper-track-gradient)"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            style={{ transition: "x2 0.35s cubic-bezier(0.16, 1, 0.3, 1)" }}
-          />
-          <line
-            className="stepper-shimmer-line"
-            x1="125"
-            y1="14"
-            x2={125 + lineFillRatio * 750}
-            y2="14"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            style={{ transition: "x2 0.35s cubic-bezier(0.16, 1, 0.3, 1)" }}
-          />
-          <defs>
-            <linearGradient id="stepper-track-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#10b981" />
-              <stop offset="50%" stopColor="#34d399" />
-              <stop offset="100%" stopColor="#10b981" />
-            </linearGradient>
-            <linearGradient id="stepper-shimmer-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="transparent" stopOpacity="0" />
-              <stop offset="50%" stopColor="#ffffff" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
-
+        <StepperSvgTrack lineFillRatio={lineFillRatio} />
         <div className="stepper-dots-row" role="tablist" aria-label="Inspection Stages">
           {SPECTRAL_LAYERS.map((layer, idx) => (
             <StepperDotItem
@@ -160,6 +168,16 @@ function InspectorStepper({
         <span className="stepper-stage-title">STAGE {activeLayer + 1} OF 4 : {currentLayer.title.toUpperCase()}</span>
         <div className="stepper-meta-controls">
           <span className="stepper-pct-badge">{`${Math.round(((activeLayer + 1) / 4) * 100)}% INSPECTED`}</span>
+          {handleSkip && (
+            <button
+              type="button"
+              className="skip-animation-btn"
+              onClick={handleSkip}
+              aria-label="Skip inspection stages"
+            >
+              Skip
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -171,6 +189,7 @@ export function ForensicInspector({
   activeLayer,
   inspectorProgress,
   handleSelectStage,
+  handleSkip,
 }: ForensicInspectorProps) {
   const currentLayer = SPECTRAL_LAYERS[activeLayer];
 
@@ -199,6 +218,7 @@ export function ForensicInspector({
           activeLayer={activeLayer}
           inspectorProgress={inspectorProgress}
           handleSelectStage={handleSelectStage}
+          handleSkip={handleSkip}
         />
 
         <div className="inspector-stage-container">
