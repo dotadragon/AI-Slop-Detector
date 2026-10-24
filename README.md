@@ -1,4 +1,4 @@
-# AI-Slop-Detector (SLOP v4.2)
+# AI-Slop-Detector 
 **Multi-Modal Forensic AI Content Detection & Bilingual EdTech Verification Platform**
 
 **Stack:** FastAPI + PyTorch CUDA + React 18 + TypeScript + Vite 6  
@@ -9,11 +9,6 @@
 ## 1. End-to-End Working Flows (Text, Image & Video)
 
 Below are the three core forensic pipelines showing how **AI-Slop-Detector** processes raw uploads into calibrated, explainable verdicts through a **Single Mathematical Score Authority (`fusion.py`)**.
-
-> **To embed the 3 animated GIFs on GitHub:** Upload `flow_text.gif`, `flow_image.gif`, and `flow_video.gif` into `assets/` in your repository root and paste these three lines under each section heading on GitHub:
-> - `![Text Forensics Animated Workflow](./assets/Code_Generated_Image.gif)`
-> - `![Image Forensics Animated Workflow](./assets/Code_Generated_Imagee.gif)`
-> - `![Video Forensics Animated Workflow](./assets/Code_Generated_Imageee.gif)`
 
 ### 1.1 `[0xTXT]` Text, Code & Sub-2s PDF Working Flow
 
@@ -57,18 +52,23 @@ Below are the three core forensic pipelines showing how **AI-Slop-Detector** pro
 
 ```mermaid
 flowchart LR
-    A(["Input Text / Source Code / PDF"]) --> B["NFKC Sanitizer & Stego Stripper"]
+    A["Input Text / Source Code / PDF"] --> B["NFKC Sanitizer & Stego Stripper"]
+    
     B --> C1["Batched 8-Window RoBERTa (Single Tensor Pass)"]
     B --> C2["Binoculars Cross-Perplexity (Qwen2.5-0.5B Obs / Perf)"]
     B --> C3["13 Stylometric & AST Signals (Burstiness, Zipf, MiniLM)"]
+    
+    C1 --> D["fusion.py: 14-Feature LightGBM + Platt Scaling"]
+    C2 --> D
+    C3 --> D
     B --> C4["compute_section_scores_fast (12 PDF Sections in <15ms)"]
-
-    C1 & C2 & C3 --> D{"fusion.py: 14-Feature LightGBM + Platt Scaling"}
-    D -->|"Indian English / High Burstiness"| E1["LIKELY_HUMAN (8% - 22%): False-Positive Protection"]
-    D -->|"High Uniformity / Low Cross-PPL"| E2["DEFINITELY_AI (88% - 99%): Sentence & Section Threat Map"]
-    C4 --> E2
-    E2 --> F["EdTech Viva & SkillPath: 3 Bilingual (EN + Telugu) Questions"]
-```
+    
+    D --> E1["Indian English / High Burstiness"]
+    D --> E2["High Uniformity / Low Cross-PPL"]
+    
+    E1 --> F1["LIKELY_HUMAN (8% - 22%): False-Positive Protection"]
+    E2 --> F2["DEFINITELY_AI (88% - 99%): Sentence & Section Threat Map"]
+    C4 --> F2
 
 ### 1.2 `[λ_RAW]` Image & v4.2 Edited Camera Photo Working Flow
 
