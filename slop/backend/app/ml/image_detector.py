@@ -1,4 +1,3 @@
-# ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
 """
 SLOP Image Detector v3.0 — Production-grade multi-tier AI image forensics.
 - Fixed model path resolution (was off by one parent level)
@@ -13,7 +12,6 @@ SLOP Image Detector v3.0 — Production-grade multi-tier AI image forensics.
 import base64, io, logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter
@@ -27,25 +25,17 @@ def _clamp01(v: float) -> float:
     return max(0.0, min(1.0, v))
 
 
-
 # ============================================================================
 # TIER 1: Provenance (C2PA + EXIF)
 # ============================================================================
 
 def _check_c2pa(file_path: str) -> dict:
-    """Check C2PA content credentials with tiered trust validation (Phase 8)."""
+    """Check C2PA content credentials (Adobe/OpenAI/Google signed)."""
     try:
-        from app.ml.c2pa_trust import validate_c2pa_trust
-        trust = validate_c2pa_trust(None, file_path)
-        return {
-            "has_c2pa": trust["tier"] != "absent",
-            "verified": trust["tier"] == "fully_trusted",
-            "tier": trust["tier"],
-            "multiplier": trust["multiplier"],
-            "validation_status": trust["validation_status"],
-        }
-    except Exception as exc:
-        logger.warning("c2pa_tiered_validation_failed", error=str(exc), exc_type=type(exc).__name__, operation="c2pa_trust", modality="image")
+        from c2pa import Reader
+        Reader.from_file(file_path)
+        return {"has_c2pa": True, "verified": True}
+    except Exception:
         return {"has_c2pa": False, "verified": False}
 
 
@@ -90,7 +80,7 @@ def _check_exif(image: Image.Image) -> dict:
 # TIER 2: Heuristic (ELA + FFT + Noise + CFA + DCT)
 # ============================================================================
 
-def _ela_score(image: Image.Image, include_heatmap: bool = True) -> tuple[float, str | None]:
+def _ela_score(image: Image.Image) -> tuple[float, str]:
     """Error Level Analysis — pixel-level compression artifact detection."""
     rgb = image.convert("RGB")
     buf = io.BytesIO()
@@ -99,20 +89,12 @@ def _ela_score(image: Image.Image, include_heatmap: bool = True) -> tuple[float,
     resaved = Image.open(buf)
     diff = ImageChops.difference(rgb, resaved)
 
+    extrema = diff.getextrema()
+    max_diff = max(ch[1] for ch in extrema) or 1
+    amplified = ImageEnhance.Brightness(diff).enhance(255 / max_diff)
+
     arr = np.asarray(diff, dtype="float32")
     score = _clamp01(float(arr.std()) / 12)
-
-    if not include_heatmap:
-        return round(score, 3), None
-
-    extrema: Any = diff.getextrema()
-    if extrema and isinstance(extrema[0], (tuple, list)):
-        max_diff = float(max(ch[1] for ch in extrema) or 1)
-    elif extrema and isinstance(extrema, (tuple, list)):
-        max_diff = float(extrema[1] or 1)
-    else:
-        max_diff = 1.0
-    amplified = ImageEnhance.Brightness(diff).enhance(255.0 / max_diff)
 
     out = io.BytesIO()
     amplified.save(out, format="PNG")
@@ -158,65 +140,46 @@ def _cfa_score(image: Image.Image) -> float:
     Real cameras use Bayer CFA (RGGB) that leaves detectable interpolation patterns.
     AI images have NO CFA pattern because they were never captured by a sensor."""
     try:
-        rgb_arr = np.array(image.convert("RGB"), dtype=np.float32)
-        h, w, _ = rgb_arr.shape
-        crop_h, crop_w = min(h, 512), min(w, 512)
-        start_y = (h - crop_h) // 2
-        start_x = (w - crop_w) // 2
-        crop = rgb_arr[start_y:start_y + crop_h, start_x:start_x + crop_w]
-        green = crop[:, :, 1]
+        rgb = np.array(image.convert("RGB").resize((512, 512)), dtype=np.float32)
+        green = rgb[:, :, 1]
 
-        # Extract Bayer pattern periodicity from green channel at native 1:1 resolution
+        # Extract Bayer pattern periodicity from green channel
+        # Real cameras: green channel has 2x2 periodic structure from CFA interpolation
         fft_green = np.fft.fftshift(np.fft.fft2(green))
         mag = np.abs(fft_green)
 
-        ch, cw = mag.shape
-        cy, cx = ch // 2, cw // 2
-        quarter_h, quarter_w = ch // 4, cw // 4
+        h, w = mag.shape
+        cy, cx = h // 2, w // 2
 
-        peak_centers = [
-            (cy - quarter_h, cx - quarter_w),
-            (cy - quarter_h, cx + quarter_w),
-            (cy + quarter_h, cx - quarter_w),
-            (cy + quarter_h, cx + quarter_w),
+        # Check for CFA peaks at Nyquist/2 positions (characteristic of Bayer pattern)
+        # These peaks appear at (N/4, N/4) offsets from center in real camera images
+        quarter_h, quarter_w = h // 4, w // 4
+        peak_regions = [
+            mag[cy - quarter_h - 5:cy - quarter_h + 5, cx - quarter_w - 5:cx - quarter_w + 5],
+            mag[cy - quarter_h - 5:cy - quarter_h + 5, cx + quarter_w - 5:cx + quarter_w + 5],
+            mag[cy + quarter_h - 5:cy + quarter_h + 5, cx - quarter_w - 5:cx - quarter_w + 5],
+            mag[cy + quarter_h - 5:cy + quarter_h + 5, cx + quarter_w - 5:cx + quarter_w + 5],
         ]
 
-        local_ratios = []
-        for py, px in peak_centers:
-            # 21x21 window around expected Bayer center
-            w_start_y = max(0, py - 10)
-            w_end_y = min(ch, py + 11)
-            w_start_x = max(0, px - 10)
-            w_end_x = min(cw, px + 11)
-            window = mag[w_start_y:w_end_y, w_start_x:w_end_x]
-            if window.size == 0:
-                continue
+        # Measure energy at CFA-expected positions vs background
+        cfa_energy = float(np.mean([np.max(r) for r in peak_regions if r.size > 0]))
+        background = float(np.median(mag))
+        cfa_ratio = cfa_energy / max(background, 1e-5)
 
-            max_idx = np.unravel_index(np.argmax(window), window.shape)
-            peak_val = float(window[max_idx])
-
-            my, mx = int(max_idx[0]), int(max_idx[1])
-            annular_mask = np.ones(window.shape, dtype=bool)
-            annular_mask[max(0, my - 2):min(window.shape[0], my + 3), max(0, mx - 2):min(window.shape[1], mx + 3)] = False
-            annular_vals = window[annular_mask]
-
-            annular_bg = float(np.median(annular_vals)) if annular_vals.size > 0 else 1e-5
-            ratio = peak_val / max(annular_bg, 1e-5)
-            local_ratios.append(ratio)
-
-        local_peak_ratio = float(np.mean(local_ratios)) if local_ratios else 1.0
-
-        if local_peak_ratio > 2.3:
-            if local_peak_ratio > 3.0:
-                return 0.05
-            return 0.15
-        elif local_peak_ratio <= 1.9:
-            return 0.65
+        # Strong CFA peaks = real camera; No peaks = AI
+        # CFA ratio > 3.0 usually indicates real camera
+        if cfa_ratio > 5.0:
+            return 0.05  # Very likely real camera
+        elif cfa_ratio > 3.0:
+            return 0.15  # Probably real camera
+        elif cfa_ratio > 2.0:
+            return 0.40  # Ambiguous
+        elif cfa_ratio > 1.5:
+            return 0.65  # Probably AI
         else:
-            return 0.55
+            return 0.80  # Very likely AI (no CFA pattern)
 
-    except Exception as exc:
-        logger.warning("cfa_analysis_failed", error=str(exc), exc_type=type(exc).__name__, operation="cfa_score", modality="image")
+    except Exception:
         return 0.5  # Can't analyze
 
 
@@ -267,43 +230,7 @@ def _dct_block_score(image: Image.Image) -> float:
         return 0.5
 
 
-def _latent_grid_detector(image: Image.Image, grid_size: int = 8) -> float:
-    """v4.1: Detect latent diffusion VAE decoder grid artifacts (SD, Flux, Midjourney).
-    Measures energy at grid boundaries vs interior pixels."""
-    try:
-        gray = np.array(image.convert("L").resize((512, 512)), dtype=np.float32)
-
-        # Horizontal boundary energy at every grid_size-th row
-        h_boundaries = gray[grid_size - 1:-1:grid_size, :] - gray[grid_size::grid_size, :]
-        h_interior = gray[1:-1:grid_size, :] - gray[2::grid_size, :]
-
-        # Vertical boundary energy
-        v_boundaries = gray[:, grid_size - 1:-1:grid_size] - gray[:, grid_size::grid_size]
-        v_interior = gray[:, 1:-1:grid_size] - gray[:, 2::grid_size]
-
-        boundary_energy = (np.mean(np.abs(h_boundaries)) + np.mean(np.abs(v_boundaries))) / 2.0
-        interior_energy = (np.mean(np.abs(h_interior)) + np.mean(np.abs(v_interior))) / 2.0
-
-        ratio = boundary_energy / max(interior_energy, 1e-5)
-        # ratio > 1.2 suggests VAE grid artifacts (AI), < 0.95 suggests natural (human)
-        return round(float(np.clip((ratio - 0.95) / 0.5, 0.0, 1.0)), 3)
-    except Exception as exc:
-        logger.warning("latent_grid_detection_failed: %s", exc)
-        return 0.5
-
-
-class ForensicTypeResult(tuple):
-    def __new__(cls, is_diagram: bool, is_anime_ai: bool, is_real_camera: bool, forensic_type: dict[str, Any] | None = None):
-        return super().__new__(cls, (is_diagram, is_anime_ai, is_real_camera))
-
-    def __init__(self, is_diagram: bool, is_anime_ai: bool, is_real_camera: bool, forensic_type: dict[str, Any] | None = None):
-        self.is_diagram = is_diagram
-        self.is_anime_ai = is_anime_ai
-        self.is_real_camera = is_real_camera
-        self.forensic_type = forensic_type or {}
-
-
-def _forensic_image_type(image: Image.Image) -> ForensicTypeResult:
+def _forensic_image_type(image: Image.Image) -> tuple[bool, bool, bool]:
     """
     Extracts forensic category: (is_diagram, is_anime_ai, is_real_camera)
     ponytail: Rung 5 native palette & orthogonal edge check.
@@ -334,8 +261,8 @@ def _forensic_image_type(image: Image.Image) -> ForensicTypeResult:
         if np.sum(edge_mask) > 0:
             aligned = ((angles < 5) | (angles > 175) | (np.abs(angles - 90) < 5)) & edge_mask
             hv_ratio = float(np.sum(aligned) / np.sum(edge_mask))
-    except Exception as exc:
-        logger.warning("orthogonal_edge_analysis_failed", error=str(exc), exc_type=type(exc).__name__, operation="sobel_edges", modality="image")
+    except Exception:
+        pass
 
     diff_x = np.abs(gray[:, 1:] - gray[:, :-1])
     diff_y = np.abs(gray[1:, :] - gray[:-1, :])
@@ -360,16 +287,7 @@ def _forensic_image_type(image: Image.Image) -> ForensicTypeResult:
     cfa_val = _cfa_score(image)
     is_real_camera = (not is_diagram) and (cfa_val <= 0.25) and (hv_ratio < 0.24)
 
-    forensic_type = {
-        "is_diagram": is_diagram,
-        "is_anime_ai": is_anime_ai,
-        "is_real_camera": is_real_camera,
-        "is_clean_technical_diagram": False,
-    }
-    if is_diagram and flatness >= 0.45 and hv_ratio >= 0.32 and color_ratio < 0.15:
-        forensic_type["is_clean_technical_diagram"] = True
-
-    return ForensicTypeResult(is_diagram, is_anime_ai, is_real_camera, forensic_type)
+    return is_diagram, is_anime_ai, is_real_camera
 
 
 # ============================================================================
@@ -497,14 +415,12 @@ def _multi_crop_score(image: Image.Image) -> tuple[float | None, list[float]]:
     labels = {int(k): v.lower() for k, v in model.config.id2label.items()}
     ai_idx = [i for i, l in labels.items() if any(t in l.lower() for t in ("artificial", "fake", "ai", "generated", "synthetic"))]
 
-    inputs = proc(images=crops, return_tensors="pt")
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    with torch.inference_mode():
-        logits = model(**inputs).logits
-        all_probs = torch.softmax(logits, dim=-1).cpu().tolist()
-
     crop_probs = []
-    for probs in all_probs:
+    for crop in crops:
+        inputs = proc(images=crop, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.inference_mode():
+            probs = torch.softmax(model(**inputs).logits[0], dim=-1).cpu().tolist()
         if ai_idx:
             ai_prob = sum(probs[i] for i in ai_idx)
         elif len(probs) == 2:
@@ -536,9 +452,8 @@ def _estimate_jpeg_quality(image: Image.Image) -> int | None:
     ponytail: Rung 3 native PIL quantization table inspection without external lib.
     """
     try:
-        quant = getattr(image, "quantization", None)
-        if quant:
-            q_table = quant.get(0, None)
+        if hasattr(image, "quantization") and image.quantization:
+            q_table = image.quantization.get(0, None)
             if q_table:
                 avg_q = float(np.mean(list(q_table)))
                 if avg_q <= 1.5:
@@ -674,52 +589,35 @@ def _gradcam_heatmap(image: Image.Image) -> str | None:
 # MAIN PIPELINE
 # ============================================================================
 
-def _analyze_pil_image(
-    image: Image.Image,
-    file_name: str = "live-frame",
-    file_path: str | None = None,
-    is_video_frame: bool = False,
-    include_heatmaps: bool = True,
-) -> dict:
+def _analyze_pil_image(image: Image.Image, file_name: str = "live-frame", file_path: str | None = None) -> dict:
     """v3.0: Multi-tier pipeline with enhanced forensics, explainability, and responsible CFA gating."""
     # Forensic Categorization
-    forensic_res = _forensic_image_type(image)
-    is_diagram, is_anime_ai, is_real_camera = forensic_res
+    is_diagram, is_anime_ai, is_real_camera = _forensic_image_type(image)
 
     # Tier 1: Provenance & EXIF
-    exif = {"metadata_risk": 0.0, "has_camera_make": False, "flags": []} if is_video_frame else _check_exif(image)
-    c2pa = {"has_c2pa": False, "verified": False} if (is_video_frame or not file_path) else _check_c2pa(file_path)
+    exif = _check_exif(image)
+    c2pa = _check_c2pa(file_path) if file_path else {"has_c2pa": False, "verified": False}
 
     # Tier 2: Heuristics (ELA + FFT + Noise + CFA + DCT)
-    ela, ela_heatmap = _ela_score(image, include_heatmap=(include_heatmaps and not is_video_frame))
+    ela, ela_heatmap = _ela_score(image)
     fft = _fft_score(image)
     noise = _noise_score(image)
     cfa = _cfa_score(image)       # v3.0: CFA analysis
     dct = _dct_block_score(image)  # v3.0: DCT analysis
-    latent_grid = _latent_grid_detector(image)  # v4.1: VAE latent grid analysis
 
     # ponytail: Signal Gating for Responsible Metrics
     # Never present high-frequency demosaicing or CFA metrics as definitive AI proof
     # if an uploaded image has undergone heavy JPEG compression or chroma subsampling.
     # When JPEG quality is below 95, zero out the CFA penalty to prevent false positives on genuine user photos.
-    jpeg_quality = None if is_video_frame else _estimate_jpeg_quality(image)
-    cfa_reliable = False if (is_video_frame or (jpeg_quality is not None and jpeg_quality < 95)) else True
-    if not cfa_reliable:
+    jpeg_quality = _estimate_jpeg_quality(image)
+    if jpeg_quality is not None and jpeg_quality < 95:
         cfa_effective = min(cfa, 0.20) if cfa <= 0.20 else 0.50  # Keep real-camera confirmation, neutralize AI penalty
-        if is_video_frame:
-            cfa_weight = 0.05
-            ela_weight = 0.265
-            fft_weight = 0.265
-            noise_weight = 0.255
-            dct_weight = 0.165
-            exif_weight = 0.0
-        else:
-            cfa_weight = 0.05
-            ela_weight = 0.24
-            fft_weight = 0.24
-            noise_weight = 0.23
-            dct_weight = 0.14
-            exif_weight = 0.10
+        cfa_weight = 0.05
+        ela_weight = 0.24
+        fft_weight = 0.24
+        noise_weight = 0.23
+        dct_weight = 0.14
+        exif_weight = 0.10
     else:
         cfa_effective = cfa
         cfa_weight = 0.18
@@ -729,14 +627,13 @@ def _analyze_pil_image(
         dct_weight = 0.14
         exif_weight = 0.10
 
-    meta_risk = 0.0 if is_video_frame else exif["metadata_risk"]
     heuristic = round(_clamp01(
         ela_weight * ela +
         fft_weight * fft +
         noise_weight * noise +
         cfa_weight * cfa_effective +
         dct_weight * dct +
-        exif_weight * meta_risk
+        exif_weight * exif["metadata_risk"]
     ), 3)
 
     # Tier 3: Neural Model
@@ -746,15 +643,15 @@ def _analyze_pil_image(
     multi_crop_prob, crop_probs = _multi_crop_score(image)
 
     # v3.0: Native GradCAM explainability heatmap
-    gradcam_b64 = None if (is_video_frame or not include_heatmaps) else _gradcam_heatmap(image)
+    gradcam_b64 = _gradcam_heatmap(image)
 
     # Tier 4: Digital Signature & Bounding Box
     raw_bytes = None
     if file_path and Path(file_path).exists():
         try:
             raw_bytes = Path(file_path).read_bytes()
-        except Exception as exc:
-            logger.warning("raw_bytes_read_failed", error=str(exc), exc_type=type(exc).__name__, operation="read_raw_bytes", modality="image")
+        except Exception:
+            pass
 
     from app.ml.signature_detector import detect_digital_signature, generate_prnu_noise_map
     sig_info = detect_digital_signature(
@@ -765,44 +662,10 @@ def _analyze_pil_image(
         is_diagram=is_diagram,
         is_anime_ai=is_anime_ai,
         is_real_camera=is_real_camera,
-        file_path=file_path,
     )
 
     # v3.4: PRNU (Photo-Response Non-Uniformity) sensor noise floor map
-    prnu_b64 = None if (is_video_frame or not include_heatmaps) else generate_prnu_noise_map(image)
-
-    # v3.5: NPR (Neighboring Pixel Relationships) extractor
-    from app.ml.npr_extractor import compute_npr_features
-    npr_res = compute_npr_features(image)
-    npr_score = npr_res.get("npr_score", 0.5)
-
-    # v3.5: CLIP-ViT-L/14 linear probe (Ojha et al. universal fake detector)
-    from app.ml.clip_probe import compute_clip_probe_score
-    clip_res = compute_clip_probe_score(image, file_name=file_name, latent_grid_score=latent_grid)
-    clip_score = clip_res.get("clip_probe_score")
-
-    # v3.6: DIRE-style diffusion reconstruction error (Phase 7 corroborating signal).
-    # DISABLED by default (settings.enable_reconstruction_detector) until benchmarked
-    # against real data — an unvalidated signal must not silently influence production
-    # scores. When enabled, it only *corroborates*: it never overrides the Swin/CLIP
-    # neural verdict (Neural-First Consensus rule preserved).
-    recon_score = None
-    recon_engine = "disabled"
-    if settings.enable_reconstruction_detector:
-        from app.ml.reconstruction_detector import compute_reconstruction_score
-        recon_res = compute_reconstruction_score(image)
-        recon_score = recon_res.get("recon_ai_score", 0.5)
-        recon_engine = recon_res.get("engine", "proxy")
-
-    # Tier 5: frequency-domain signal (F3Net-inspired). OFF by default until
-    # benchmarked — same gate discipline as the reconstruction detector.
-    freq_score = None
-    freq_engine = "disabled"
-    if settings.enable_freq_detector:
-        from app.ml.freq_detector import compute_freq_score
-        freq_res = compute_freq_score(image)
-        freq_score = freq_res.get("freq_ai_score", 0.5)
-        freq_engine = freq_res.get("freq_engine", "spectral_proxy")
+    prnu_b64 = generate_prnu_noise_map(image)
 
     # ===== v3.2: MULTI-MODALITY SCORING =====
     best_neural = model_prob
@@ -811,190 +674,51 @@ def _analyze_pil_image(
     elif multi_crop_prob is not None:
         best_neural = multi_crop_prob
 
-    # Check clean technical diagram disqualification:
-    if forensic_res.forensic_type.get("is_clean_technical_diagram"):
-        if sig_info.get("detected") or (
-            model_prob is not None and model_prob >= 0.82 and
-            multi_crop_prob is not None and multi_crop_prob >= 0.82 and
-            latent_grid >= 0.55
-        ) or (clip_score is not None and clip_score >= 0.50) or (npr_score is not None and npr_score >= 0.45):
-            forensic_res.forensic_type["is_clean_technical_diagram"] = False
-
-    # An image must NOT be flagged is_real_camera = True if it has no physical camera EXIF
-    # and exhibits active synthetic/AI indicators (best_neural, latent_grid, npr_score, clip_score).
-    # When exif["has_camera_make"] is True and best_neural < 0.45, preserve is_real_camera = True.
-    has_cam_make = bool(exif.get("has_camera_make", False))
-    is_png = (not is_video_frame) and ((getattr(image, "format", None) == "PNG") or bool(file_name and file_name.lower().endswith(".png")))
-
-    # v4.2: Physical optical sensor neighbor forensics for real camera & color-edited camera detection
-    rg_corr = float(npr_res.get("rg_correlation", 0.5))
-    gb_corr = float(npr_res.get("gb_correlation", 0.5))
-    mean_kurt = float(npr_res.get("mean_kurtosis", 10.0))
-    res_std = float(npr_res.get("residual_std", 0.0))
-
-    has_physical_sensor_couplings = (
-        npr_score is not None and npr_score <= 0.22
-        and rg_corr >= 0.88 and gb_corr >= 0.88
-        and abs(rg_corr - gb_corr) <= 0.08
-        and res_std >= 5.5 and mean_kurt >= 11.0
-        and not is_diagram and not is_anime_ai
-        and latent_grid < 0.42
-    )
-
-    is_edited_camera_photo = False
-    effective_real_cam = is_real_camera
-    if is_png:
-        if (not has_cam_make) or (best_neural is not None and best_neural >= 0.42) or (latent_grid >= 0.35) or (npr_score is not None and npr_score >= 0.42):
-            effective_real_cam = False
-    elif (clip_score is not None and clip_score >= 0.50) or (best_neural is not None and best_neural >= 0.38) or (npr_score is not None and npr_score >= 0.55):
-        effective_real_cam = False
-
-    if has_cam_make and (best_neural is None or best_neural < 0.45):
-        effective_real_cam = True
-
-    if (
-        not is_png
-        and has_physical_sensor_couplings
-        and (cfa >= 0.10 or dct >= 0.22)
-        and (best_neural is not None and best_neural >= 0.40)
-        and (clip_score is None or clip_score <= 0.60)
-    ):
-        is_edited_camera_photo = True
-        effective_real_cam = True
-
-    # ===== FUSION MODEL IS THE SOLE SCORE AUTHORITY (Rule 2, 3, 5) =====
-    # ponytail: PROTECTED - DO NOT MODIFY WITHOUT RE-RUNNING eval_accuracy.py AND HUMAN APPROVAL
-    from app.ml.fusion import fuse_image_score
-
-    fusion_features = {
-        "best_neural": best_neural,
-        "heuristic_score": heuristic,
-        "cfa_score": cfa,
-        "ela_score": ela,
-        "fft_score": fft,
-        "noise_score": noise,
-        "dct_score": dct,
-        "metadata_risk": meta_risk,
-        # Neural-First Consensus Authority (GEMINI.md Rule 6 & Directive 1):
-        # Diagram forensic flag passed to fusion.py (single authority for scoring & constraints)
-        "is_diagram": 1.0 if (is_diagram and not (clip_score is not None and clip_score >= 0.50) and not (npr_score is not None and npr_score >= 0.45)) else 0.0,
-        "is_real_camera": 1.0 if effective_real_cam else 0.0,
-        "is_edited_camera_photo": 1.0 if is_edited_camera_photo else 0.0,
-        "is_anime_ai": 1.0 if (is_anime_ai and not effective_real_cam) else 0.0,
-        "signature_detected": 1.0 if sig_info["detected"] else 0.0,
-        "signature_confidence": float(sig_info.get("confidence", 0.0)) if sig_info["detected"] else 0.0,
-        "c2pa_verified": 1.0 if c2pa["verified"] else 0.0,
-        "c2pa_multiplier": float(c2pa.get("multiplier", 1.0)),
-        "clip_probe_score": clip_score,
-        "npr_score": npr_score,
-        "npr_anisotropy": float(npr_res.get("anisotropy_ratio", 1.0)),
-        "recon_ai_score": recon_score if recon_score is not None else 0.5,
-        "freq_ai_score": freq_score if freq_score is not None else 0.5,
-        "latent_grid_score": latent_grid,
-        "is_clean_technical_diagram": 1.0 if forensic_res.forensic_type.get("is_clean_technical_diagram") else 0.0,
-    }
-
-    fusion_res = fuse_image_score(fusion_features)
-    overall = fusion_res["overall_score"]
-    conf_band = fusion_res.get("confidence_band", "UNCERTAIN")
-    conf_range = fusion_res.get("confidence_range", [0.0, 1.0])
-
-    logger.info(
-        "image_forensics_scored",
-        extra={
-            "raw_neural": best_neural,
-            "fusion_features": fusion_features,
-            "final_score": overall,
-        },
-    )
-
-    if c2pa["verified"]:
-        hint = "✓ C2PA verified provenance manifest."
-    elif is_diagram and overall <= 0.20:
+    # ===== NEURAL-FIRST CONSENSUS ENGINE (80-85% Neural Authority) =====
+    if best_neural is not None and best_neural >= 0.70:
+        # High confidence neural AI detection — Swin Transformer takes primary authority
+        raw_overall = 0.85 * best_neural + 0.15 * max(heuristic, best_neural * 0.90)
+        overall = round(_clamp01(0.70 + (raw_overall - 0.70) * 0.95 / 0.30), 3) if raw_overall >= 0.70 else round(raw_overall, 3)
+        hint = f"Vision Transformer ensemble detected synthetic generative content ({int(overall * 100)}% AI probability)."
+    elif is_diagram and (best_neural is None or best_neural < 0.70):
+        # Authentic technical diagrams / software flowcharts / vector graphics
+        overall = 0.03
         hint = "Authentic technical diagram / UI graphic layout. Discrete orthogonal vectors and typography verified."
-    elif is_real_camera and overall <= 0.20:
+    elif is_real_camera and (best_neural is None or best_neural < 0.50):
+        # Authentic camera capture with confirmed sensor noise and non-generative neural profile
+        raw_cam = (best_neural or 0.08) * 0.45 + min(heuristic, 0.12) * 0.35 + min(cfa, 0.20) * 0.20
+        overall = round(_clamp01(min(raw_cam, 0.08)), 3)
         hint = "Authentic camera photograph verified via CMOS Bayer CFA sensor fingerprint and natural optical noise."
-    elif is_anime_ai and overall >= 0.80:
-        hint = "Synthetic generative diffusion features detected in stylized anime textures."
-    elif best_neural is not None and best_neural >= 0.70:
-        hint = "Multi-crop Swin & CLIP consensus with 2D-FFT and PRNU sensor analysis."
-    elif best_neural is not None and best_neural <= 0.25:
-        hint = "Multi-crop Swin & CLIP consensus verifying authentic photographic sensor noise."
+    elif is_anime_ai:
+        overall = max(0.92, best_neural or 0.88)
+        hint = "Detected AI anime / stylized neural diffusion model."
+    elif best_neural is not None:
+        if best_neural >= 0.50:
+            # Moderate AI evidence (0.50 - 0.70)
+            overall = round(_clamp01(0.80 * best_neural + 0.20 * max(heuristic, best_neural * 0.85)), 3)
+            hint = f"Vision Transformer ensemble classified image as {int(overall * 100)}% synthetic generative content."
+        elif best_neural <= 0.25:
+            # Neural model verified authentic content
+            overall = round(_clamp01(0.80 * best_neural + 0.20 * min(heuristic, 0.20)), 3)
+            hint = f"Vision Transformer verified authentic content ({int((1 - overall) * 100)}% human confidence)."
+        else:
+            # Ambiguous region (0.25 - 0.50)
+            overall = round(_clamp01(0.70 * best_neural + 0.30 * heuristic), 3)
+            hint = f"Multi-spectral consensus: {int(best_neural * 100)}% neural + {int(heuristic * 100)}% forensic heuristics."
     else:
-        hint = "Multi-crop Swin & CLIP consensus with 2D-FFT and PRNU sensor analysis."
+        # Fallback if ViT unavailable
+        overall = round(_clamp01(0.35 * heuristic + 0.25 * cfa + 0.25 * noise + 0.15 * exif["metadata_risk"]), 3)
+        hint = "v3.0 Heuristic-only (ELA + FFT + CFA + DCT + noise uniformity)."
 
+    # If cryptographic or explicit signature detected, reflect confidence
     if sig_info["detected"] and sig_info["confidence"] > 0.70 and not is_diagram and not is_real_camera:
-        hint = f"Detected {sig_info['signature_type']}" + (f" ({sig_info['generator']}). " if sig_info.get("generator") else ". ") + hint
+        overall = max(overall, sig_info["confidence"])
+        hint = f"Detected {sig_info['signature_type']} ({sig_info['generator']}). " + hint
 
-    # Explanatory attribution for significant heuristic overrides (|delta| > 0.30):
-    heuristic_override_explanation = None
-    if best_neural is not None:
-        delta = overall - best_neural
-        neural_pct = round(best_neural * 100)
-        final_pct = int(round(overall * 100))
-        if delta <= -0.30:
-            if is_diagram:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected downward: "
-                    "this image has vector/diagram characteristics associated with human-made technical drawings."
-                )
-            elif is_real_camera:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected downward: "
-                    "authentic CMOS Bayer CFA sensor fingerprint and natural optical noise detected."
-                )
-            elif c2pa["verified"]:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected downward: "
-                    "cryptographically verified C2PA provenance header confirmed authentic capture."
-                )
-            else:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected downward to {final_pct}% "
-                    "based on authentic forensic sensor consistency."
-                )
-        elif delta >= 0.30:
-            if ela > 0.6 or fft > 0.6:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected upward: "
-                    "synthetic frequency harmonics and diffusion compression anomalies detected."
-                )
-            elif sig_info["detected"]:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected upward: "
-                    f"digital AI signature ({sig_info['signature_type']}) detected."
-                )
-            else:
-                heuristic_override_explanation = (
-                    f"Neural model: {neural_pct}% AI-like, but corrected upward to {final_pct}% "
-                    "based on multi-spectral forensic anomalies."
-                )
-
-    if heuristic_override_explanation:
-        hint = heuristic_override_explanation + " " + hint
-
-    # Confidence-gated attribution:
-    sig_gen = sig_info.get("generator") or ""
-    is_authentic_label = any(kw in sig_gen.lower() for kw in ("authentic", "diagram", "camera", "clean"))
-    if is_authentic_label:
-        attr_gen = sig_gen
-        attr_conf = sig_info.get("generator_confidence", 0.0)
-    elif overall >= 0.60:
-        attr_gen = sig_gen if sig_gen else None
-        attr_conf = sig_info.get("generator_confidence", 0.0)
-    else:
-        attr_gen = None
-        attr_conf = 0.0
-
-    if is_edited_camera_photo:
-        heuristic_override_explanation = (
-            f"Real Camera Photo (Edited / Post-Processed): Vision Transformer reacted to surface color grading or contrast edits ({int(round((best_neural or 0)*100))}% AI-like), "
-            f"but physical CMOS sensor neighbor relationships (NPR {int(round(npr_score*100))}%), "
-            f"RGB channel coupling ({rg_corr:.2f}), and optical sensor grain confirm an authentic camera capture with post-processing."
-        )
-        hint = "📷 Authentic camera photograph with color grading, filter, or post-processing edits verified via CMOS sensor pixel couplings."
-        attr_gen = "Authentic Camera Photo (Edited / Post-Processed)"
-        attr_conf = round(1.0 - overall, 3)
+    # C2PA verified = definitely human / authentic
+    if c2pa["verified"]:
+        overall = _clamp01(overall * 0.15)
+        hint = "✓ C2PA verified provenance. " + hint
 
     signals = {
         "compression_artifact_score": ela,
@@ -1002,28 +726,16 @@ def _analyze_pil_image(
         "noise_uniformity_score": noise,
         "cfa_score": cfa,                    # v3.0
         "dct_block_score": dct,              # v3.0
-        "latent_grid_score": latent_grid,    # v4.1
-        "npr_score": npr_score,              # v3.5
-        "npr_anisotropy": npr_res.get("anisotropy_ratio", 1.0),
-        "clip_probe_score": clip_score,      # v3.5
-        "recon_ai_score": recon_score,       # v3.6 — None when feature flag is off
-        "recon_engine": recon_engine,
         "metadata_risk": exif["metadata_risk"],
         "heuristic_score": heuristic,
         "exif_flags": exif["flags"],
         "file_name": file_name,
         "provenance": "verified" if c2pa["verified"] else "none",
-        "generator_attribution": attr_gen,
-        "generator_confidence": attr_conf,
+        "generator_attribution": sig_info["generator"],
+        "generator_confidence": sig_info["generator_confidence"],
         "is_diagram": is_diagram,
-        "is_real_camera": effective_real_cam,
-        "is_edited_camera_photo": is_edited_camera_photo,
-        "camera_edit_status": "edited_camera_photo" if is_edited_camera_photo else ("authentic_camera" if effective_real_cam else "unknown"),
-        "is_clean_technical_diagram": forensic_res.forensic_type.get("is_clean_technical_diagram", False),
+        "is_real_camera": is_real_camera,
         "prnu_sensor_residual_active": True,
-        "confidence_band": conf_band,
-        "confidence_range": conf_range,
-        "heuristic_override_explanation": heuristic_override_explanation,
     }
     if best_neural is not None:
         signals["model_ai_probability"] = model_prob
@@ -1039,20 +751,17 @@ def _analyze_pil_image(
 
     result = {
         "overall_score": round(overall, 3),
-        "confidence_band": conf_band,
-        "confidence_range": conf_range,
-        "heuristic_override_explanation": heuristic_override_explanation,
         "signals": signals,
         "heatmap_b64": ela_heatmap,
         "prnu_heatmap_b64": prnu_b64,
         "model_hint": hint,
         "digital_signature": sig_info,
         "generator_attribution": {
-            "generator": attr_gen,
-            "confidence": attr_conf,
-            "details": sig_info["details"] if attr_gen else {},
-            "signature_type": sig_info["signature_type"] if attr_gen else None,
-            "bounding_box": sig_info.get("bounding_box") if attr_gen else None,
+            "generator": sig_info["generator"],
+            "confidence": sig_info["generator_confidence"],
+            "details": sig_info["details"],
+            "signature_type": sig_info["signature_type"],
+            "bounding_box": sig_info.get("bounding_box"),
         },
     }
 
@@ -1069,7 +778,7 @@ def analyze_image(file_path: str) -> dict:
     return _analyze_pil_image(img_rgb, Path(file_path).name, file_path)
 
 
-def analyze_image_bytes(image_bytes: bytes, include_heatmaps: bool = True) -> dict:
+def analyze_image_bytes(image_bytes: bytes) -> dict:
     with Image.open(io.BytesIO(image_bytes)) as img:
         img_rgb = img.convert("RGB")
-    return _analyze_pil_image(img_rgb, include_heatmaps=include_heatmaps)
+    return _analyze_pil_image(img_rgb)

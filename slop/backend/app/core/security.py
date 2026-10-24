@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import JWTError, jwt  # type: ignore
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -47,7 +47,7 @@ def decode_token(token: str, expected_type: str | None = None) -> dict[str, Any]
         raise ValueError("invalid_token") from exc
     if expected_type and payload.get("typ") != expected_type:
         raise ValueError("invalid_token_type")
-    return dict(payload)
+    return payload
 
 
 def create_access_token(user_id: str) -> str:

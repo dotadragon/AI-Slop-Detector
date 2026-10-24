@@ -38,8 +38,6 @@ def _analyze_synthid_spectral_watermark(
     img_rgb: Image.Image,
     is_diagram: bool = False,
     is_real_camera: bool = False,
-    file_path: str | None = None,
-    neural_ai_prob: float | None = None,
 ) -> dict[str, Any]:
     """
     Forensic spectral analysis detecting Google SynthID and latent diffusion harmonic perturbations.
@@ -84,27 +82,7 @@ def _analyze_synthid_spectral_watermark(
 
         # Latent diffusion watermark detection calibrated for SDXL, Flux, Midjourney v6
         is_synthid_candidate = (boundary_grid > 7.8 and kurtosis < 8.2 and spectral_ratio > 0.28)
-
-        # Standard JPEG compression produces 8x8 DCT boundary grids on authentic human photos.
-        # Do not trigger SynthID on JPEGs unless mid_band_anomaly > 1.85 and neural_ai_prob >= 0.55.
-        is_jpeg = False
-        if file_path and file_path.lower().endswith((".jpg", ".jpeg")):
-            is_jpeg = True
-        elif getattr(img_rgb, "format", None) in ("JPEG", "JPG"):
-            is_jpeg = True
-
-        mid_band_anomaly = mid_energy / (float(np.median(mag)) + 1e-5)
-        if is_jpeg:
-            if not (mid_band_anomaly > 1.85 and (neural_ai_prob is not None and neural_ai_prob >= 0.55)):
-                is_synthid_candidate = False
-
-        # ponytail: A negative detection must never carry a high confidence score.
-        # Confidence is only meaningful for positive SynthID candidates; otherwise it stays near zero.
-        confidence = (
-            min(0.98, max(0.60, 0.40 * (spectral_ratio / 0.40) + 0.60 * min(1.0, boundary_grid / 15.0)))
-            if is_synthid_candidate
-            else round(min(0.10, 0.05 * (spectral_ratio / 0.40) + 0.05 * min(1.0, boundary_grid / 15.0)), 3)
-        )
+        confidence = min(0.98, max(0.60, 0.40 * (spectral_ratio / 0.40) + 0.60 * min(1.0, boundary_grid / 15.0)))
 
         return {
             "is_synthid": is_synthid_candidate,
@@ -113,22 +91,15 @@ def _analyze_synthid_spectral_watermark(
             "boundary_grid": round(float(boundary_grid), 2),
             "kurtosis": round(float(kurtosis), 2),
         }
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning(
-            "synthid_spectral_analysis_failed",
-            error=str(exc),
-            exc_type=type(exc).__name__,
-            operation="synthid_spectral",
-            modality="image",
-        )
+    except Exception:
         return {"is_synthid": False, "confidence": 0.0, "spectral_ratio": 0.0, "boundary_grid": 0.0, "kurtosis": 0.0}
 
 
 def _compute_focal_bbox(img_rgb: Image.Image) -> dict[str, float]:
     """Find localized bounding box around central high-saliency generative feature."""
     canvas = img_rgb.resize((256, 256), Image.Resampling.BILINEAR)
-    gray = np.array(canvas.convert("L"), dtype=np.float32)
+    arr = np.array(canvas, dtype=np.float32)
+    gray = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
 
     grid_size = 8
     block = 256 // grid_size
@@ -166,7 +137,6 @@ def detect_digital_signature(
     is_diagram: bool = False,
     is_anime_ai: bool = False,
     is_real_camera: bool = False,
-    file_path: str | None = None,
 ) -> dict[str, Any]:
     """
     Detects hidden digital signatures, Google SynthID frequency watermarks,
@@ -178,24 +148,18 @@ def detect_digital_signature(
 
     c2pa_info = _inspect_c2pa(raw_bytes)
     meta_info = _inspect_metadata(pil_img, raw_bytes, neural_ai_prob)
-    synthid_spectral = _analyze_synthid_spectral_watermark(
-        img_rgb,
-        is_diagram=is_diagram,
-        is_real_camera=is_real_camera,
-        file_path=file_path,
-        neural_ai_prob=neural_ai_prob,
-    )
+    synthid_spectral = _analyze_synthid_spectral_watermark(img_rgb, is_diagram=is_diagram, is_real_camera=is_real_camera)
 
     details: list[str] = []
     detected: bool = False
     sig_type: str = "None"
     confidence: float = 0.0
-    generator: str | None = "Standard Photo / Graphic"
+    generator: str = "Standard Photo / Graphic"
     generator_conf: float = 0.50
     bbox: dict[str, float] | None = None
 
-    # 1. Technical diagram / graphic document (only if neural model confirms non-generative content <= 0.60)
-    if is_diagram and (neural_ai_prob is None or neural_ai_prob <= 0.60):
+    # 1. Technical diagram / graphic document (only if neural model confirms non-generative content)
+    if is_diagram and (neural_ai_prob is None or neural_ai_prob < 0.70):
         return {
             "detected": False,
             "signature_type": "None",
@@ -253,7 +217,7 @@ def detect_digital_signature(
         bbox = _compute_focal_bbox(img_rgb)
 
     # 6. Check SynthID Spectral Harmonic Pattern (strictly on photographic diffusion latents)
-    elif synthid_spectral["is_synthid"] and (neural_ai_prob is not None and neural_ai_prob >= 0.65):
+    elif synthid_spectral["is_synthid"] and (neural_ai_prob and neural_ai_prob >= 0.75):
         detected = True
         sig_type = "Google SynthID Digital Watermark"
         confidence = max(synthid_spectral["confidence"], round(float(neural_ai_prob), 3))
@@ -270,19 +234,24 @@ def detect_digital_signature(
         detected = False
         sig_type = "None"
         confidence = 0.0
-        generator = meta_info.get("heuristic_generator")
-        generator_conf = round(float(neural_ai_prob or 0.88), 3) if generator else 0.0
-        details = []
+        if meta_info.get("heuristic_generator"):
+            generator = meta_info["heuristic_generator"]
+        elif is_anime_ai:
+            generator = "Midjourney / Anime Diffusion (Niji Model)"
+        else:
+            generator = "Diffusion Neural Engine (Midjourney / DALL-E / Flux)"
+        generator_conf = round(float(neural_ai_prob or 0.88), 3)
+        details.append(f"Vision Transformer classified synthetic generative diffusion features ({generator})")
         bbox = None
 
     else:
         detected = False
         sig_type = "None"
         confidence = 0.0
-        generator = None
-        generator_conf = 0.0
+        generator = "Standard Photo / Graphic"
+        generator_conf = 0.80
         bbox = None
-        details = []
+        details.append("No digital signature or synthetic generative watermark detected.")
 
     return {
         "detected": detected,
@@ -307,7 +276,7 @@ def _inspect_metadata(pil_img: Image.Image, raw_bytes: bytes | None, neural_ai_p
 
     # Check PNG text chunks
     for k, v in info.items():
-        if isinstance(v, str) and isinstance(k, str):
+        if isinstance(v, str):
             text_chunks[k.lower()] = v
             lower_v = v.lower()
             if any(term in lower_v for term in ("steps:", "sampler:", "cfg scale:", "seed:", "negative prompt:")):

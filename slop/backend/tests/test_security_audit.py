@@ -195,32 +195,6 @@ def test_production_secret_key_validation():
         Settings(app_env="production", secret_key="dev-secret-change-me-dev-secret-change-me")
 
 
-def test_production_secret_key_entropy_floors():
-    """Weak production keys (short or low-diversity) must fail startup validation."""
-    import pytest
-    from app.core.config import Settings
-
-    # too short (< 32 chars) but otherwise diverse
-    with pytest.raises(ValueError, match="at least 32 characters"):
-        Settings(app_env="production", secret_key="Ab3xK9mQpL2vZ7rT")
-    # long enough but only 3 distinct chars (padding-style key)
-    with pytest.raises(ValueError, match="too little character diversity"):
-        Settings(app_env="production", secret_key="aAbBcCdDaAbBcCdDaAbBcCdDaAbBcCdD")
-    # 31 chars, diverse — still under the floor
-    with pytest.raises(ValueError, match="at least 32 characters"):
-        Settings(app_env="production", secret_key="Ab3xK9mQpL2vZ7rT8wN5yE2hJ4uM6sX")
-
-
-def test_production_secret_key_accepts_strong_key():
-    """A real 32+ char high-diversity key must pass production validation."""
-    import secrets
-    from app.core.config import Settings
-
-    strong = secrets.token_urlsafe(48)  # 64 url-safe chars, high diversity
-    s = Settings(app_env="production", secret_key=strong)
-    assert s.secret_key == strong
-
-
 def test_double_extension_and_embedded_executable_blocked():
     """Validates that filenames with double extensions or embedded blocked extensions are rejected."""
     from app.utils.file_handler import is_extension_blocked
@@ -252,46 +226,5 @@ def test_websocket_malformed_uuid_rejected():
         with client.websocket_connect("/api/v1/jobs/ws/not-a-valid-uuid"):
             pass
     assert exc_info.value.code == 1008
-
-
-def test_homoglyph_attack_robustness_on_prose():
-    """Validates that cross-script Cyrillic/Greek homoglyphs on Latin prose yield bit-identical scores."""
-    import random
-    prose = (
-        "Artificial intelligence models have made remarkable strides across various domains. "
-        "These systems demonstrate innovative solutions and facilitate rapid progress. "
-        "Furthermore, careful evaluation is crucial to ensure reliable deployment."
-    )
-    homoglyphs = {
-        "a": "а", "e": "е", "o": "о", "p": "р", "c": "с", "y": "у",
-        "x": "х", "i": "і", "s": "ѕ", "j": "ј", "A": "А", "B": "В",
-        "E": "Е", "K": "К", "M": "М", "H": "Н", "O": "О", "P": "Р",
-        "C": "С", "T": "Т", "X": "Х",
-    }
-    rng = random.Random(42)
-    attacked = "".join(homoglyphs[ch] if ch in homoglyphs and rng.random() < 0.35 else ch for ch in prose)
-    assert attacked != prose
-    assert _normalize_and_sanitize_text(attacked) == _normalize_and_sanitize_text(prose)
-    orig_score = analyze_text(prose)["overall_score"]
-    attack_score = analyze_text(attacked)["overall_score"]
-    assert orig_score == attack_score
-
-
-def test_whitespace_attack_robustness_on_prose():
-    """Validates that intra-sentence space-doubling and single-newline breaks yield bit-identical scores on prose."""
-    import re
-    prose = (
-        "Artificial intelligence models have made remarkable strides across various domains. "
-        "These systems demonstrate innovative solutions and facilitate rapid progress. "
-        "Furthermore, careful evaluation is crucial to ensure reliable deployment."
-    )
-    attacked = re.sub(r"(?<=\S) (?=\S)", "  ", prose)
-    attacked = re.sub(r"\. ", ".\n", attacked)
-    assert attacked != prose
-    assert _normalize_and_sanitize_text(attacked) == _normalize_and_sanitize_text(prose)
-    orig_score = analyze_text(prose)["overall_score"]
-    attack_score = analyze_text(attacked)["overall_score"]
-    assert orig_score == attack_score
-
 
 

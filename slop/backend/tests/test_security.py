@@ -6,7 +6,7 @@ from app.main import app
 def test_security_headers_present():
     client = TestClient(app)
     response = client.get("/health")
-    assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert "Content-Security-Policy" in response.headers
 

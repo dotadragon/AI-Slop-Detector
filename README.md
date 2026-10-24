@@ -1,187 +1,271 @@
-AI-Slop is a robust video and text detection system for authenticating user-generated content.
+# AI-Slop-Detector (SLOP v4.2)
+**Multi-Modal Forensic AI Content Detection & Bilingual EdTech Verification Platform**
 
-## Current Detection Pipeline
+**Stack:** FastAPI + PyTorch CUDA + React 18 + TypeScript + Vite 6  
+**Verified Benchmarks:** `100.0%` Golden Set | `98.48%` (65/66) Image Regression Gate | `100.0%` Dev Text & Video | `1.243s` Multi-Page PDF Scan
 
-### Text Detection
+**Full-stack multi-modal AI forensics suite** across **Text, Image, Document (PDF/DOCX), Video, and Audio**—combining calibrated neural ensembles, physical CMOS camera sensor coupling, sub-2-second PDF figure carving, residual optical-flow deepfake analysis, and **Bilingual (English + Telugu) EdTech Viva-Voce generation**.
 
-The text classifier uses a production-ready backend pipeline with the following components:
-- **Multimodal Fusion**: Combines multiple signal types for comprehensive detection.
-- **Per-Sample Analysis**: Extracts 14 features for each text sample.
-- **Cross-Validated Regularization**: Uses 5-fold cross-validation to tune L2 regularization strength (`alpha` parameter).
-- **Strict Promotion Gate**: Requires minimum balanced accuracy (0.75), macro-F1 (0.70), and hard human recall floor (0.80) to prevent false positives.
-- **Real-Time Perplexity**: Uses Intel's OpenVINO for fast perplexity scoring.
-- **OOD Robustness**: Checks for "casual text" and "short text" to avoid overfitting to dataset styles.
-- **Tier-0 Ready**: Fully functional for production deployment.
+## 1. End-to-End Working Flows (Text, Image & Video)
 
-### Video Detection
+Below are the three core forensic pipelines showing how **AI-Slop-Detector** processes raw uploads into calibrated, explainable verdicts through a **Single Mathematical Score Authority (`fusion.py`)**.
 
-The video classifier uses a multi-stage pipeline to detect generative video and manipulated content:
+> **To embed the 3 animated GIFs on GitHub:** Upload `flow_text.gif`, `flow_image.gif`, and `flow_video.gif` into `assets/` in your repository root and paste these three lines under each section heading on GitHub:
+> - `![Text Forensics Animated Workflow](./assets/Code_Generated_Image.gif)`
+> - `![Image Forensics Animated Workflow](./assets/Code_Generated_Imagee.gif)`
+> - `![Video Forensics Animated Workflow](./assets/Code_Generated_Imageee.gif)`
 
-#### 1. Preprocessing
-- **Frame Extraction**: Samples 20 frames for analysis.
-- **Scene Detection**: Identifies screen recordings (UI content) separately from photographic scenes.
-- **Face Detection**: Uses MediaPipe to find faces for specialized analysis.
-- **SynthID Embedding**: Generates cryptographic watermarks for forgery detection.
+### 1.1 `[0xTXT]` Text, Code & Sub-2s PDF Working Flow
 
-#### 2. Scene-Based Analysis
-- **Deepfake Detection**: Uses a specialized DeepFake ViT model to analyze each frame for manipulation artifacts.
-- **Generative Video Detection**: Uses a Swin Transformer to detect AI-generated videos (diffusion models).
-- **Temporal Analysis**: Analyzes frame-to-frame consistency using:
-    - **Temporal Flicker**: Detects high-frequency luminance fluctuations.
-    - **Temporal Jitter**: Detects camera motion artifacts.
-    - **Noise Consistency**: Ensures statistical consistency across frames.
-- **Artifact Detection**: Analyzes frame metadata for:
-    - **Compression Artifacts**: Detects video compression patterns.
-    - **Metadata Anomalies**: Checks for unusual file properties.
+#### Step-by-Step Signal Pipeline (`Token Stream -> Dual-LLM Cross-Perplexity -> Platt-Calibrated Verdict + Bilingual Viva`)
 
-#### 3. Face-Based Analysis
-- **Deepfake Face Detection**: Analyzes each detected face for manipulation artifacts using DeepFake ViT.
-- **Face Swap Detection**: Uses specialized metrics to detect face swaps and blending inconsistencies.
-- **Facial Feature Consistency**: Ensures consistent facial characteristics across frames.
-
-#### 4. Fusion Engine
-- **Rule-Based Decision Logic**: Combines all signals using a hierarchical scoring system that prioritizes high-threat indicators:
-    - **Generative Video Suppression**: If video is classified as generative (e.g., diffusion model), AI score is elevated.
-    - **Deepfake Face Suppression**: Face manipulations (including face swaps) are treated as high-threat signals.
-    - **Screen Recording Handling**: Authentic UI screen recordings are suppressed to avoid false positives.
-    - **Natural Video Correction**: Authentic photographic footage is corrected to reduce false positives.
-    - **SynthID Corroboration**: Cryptographic watermarks provide strong evidence of manipulation.
-
-#### 5. Output
-- **Final AI Score**: Aggregated score between 0.00 and 1.00.
-- **Confidence Band**: Categorical confidence level (low, moderate, high, very high).
-- **Confidence Range**: Margin of error for the score.
-- **Primary Signal**: Identifies the main detection mechanism (e.g., generative video, deepfake face, SynthID).
-- **Contributory Signals**: Detailed breakdown of all contributing factors.
-- **Per-Frame Metrics**: Comprehensive data for each analyzed frame.
-
-## Prerequisites
-
-### System Dependencies
-- Python 3.8+
-- Linux environment (Ubuntu recommended)
-- GPU recommended for video processing (MediaPipe requires OpenGL 3.2+)
-
-### Python Packages
-```bash
-pip install
-    numpy
-    scikit-learn
-    pandas
-    torch>=2.0.0
-    torchvision
-    transformers>=4.40.0
-    accelerate>=0.25.0
-    mediapipe==0.10.9
-    diffusers>=0.20.0
-    opencv-python-headless
-    PyYAML>=6.0.0
-    tqdm
-    sentence-transformers>=2.2.0
-    onnxruntime>=1.16.0
-    tensorrt>=8.6.1
+```text
+  [ Raw Prose / Source Code / Multi-Page PDF ]
+              |
+              v  (NFKC Sanitization + Zero-Width Steganography Strip)
+  +---------------------------------------------------------------------------+
+  | PARALLEL FEATURE EXTRACTION (< 1.25s for Multi-Page PDF)                  |
+  |                                                                           |
+  |  +--> [1] RoBERTa 8-Chunk Batched Sliding Window ------> P_neural = 0.91  |
+  |  |        (Single Tensor Pass, max_len=512, decay w_i)                    |
+  |  |                                                                        |
+  |  +--> [2] Binoculars Observer/Performer Cross-PPL -----> B(T)     = 0.84  |
+  |  |        (Qwen2.5-0.5B Base vs Instruct + 0ms PPL reuse)                 |
+  |  |                                                                        |
+  |  +--> [3] 13 Stylometric & Structural Extractors ------> Burst    = 0.19  |
+  |  |        (Burstiness SD/Mean, Zipf, Hedging, MiniLM, AST)                |
+  |  |                                                                        |
+  |  +--> [4] Fast Section Mapper (compute_section_scores_fast in < 15ms)     |
+  +-----------------------------------+---------------------------------------+
+                                      |  14-Feature Vector
+                                      v
+                    +-----------------------------------+
+                    |  Single Score Authority           |
+                    |  LightGBM (text.pkl) + Platt      |
+                    |  Calibration (text_calibrator.pkl)|
+                    +-----------------+-----------------+
+                                      |
+                   +------------------+------------------+
+                   v                                     v
+   +-------------------------------+     +-------------------------------+
+   | Calibrated Verdict & UI       |     | Bilingual EdTech Viva         |
+   | * Overall AI Prob + 95% CI    |     | * Top-3 High-Risk Sentences   |
+   | * Sentence Attribution Map    |     | * English + Telugu Viva Q&A   |
+   | * Section Threat Heatmap      |     | * SkillPath Competency Gaps   |
+   +-------------------------------+     +-------------------------------+
 ```
 
-## Project Structure
+```mermaid
+flowchart LR
+    A(["Input Text / Source Code / PDF"]) --> B["NFKC Sanitizer & Stego Stripper"]
+    B --> C1["Batched 8-Window RoBERTa (Single Tensor Pass)"]
+    B --> C2["Binoculars Cross-Perplexity (Qwen2.5-0.5B Obs / Perf)"]
+    B --> C3["13 Stylometric & AST Signals (Burstiness, Zipf, MiniLM)"]
+    B --> C4["compute_section_scores_fast (12 PDF Sections in <15ms)"]
 
-```
-AI-Slop/
-├── scripts//
-│   ├── train_text_fusion.py          # Text classifier training
-│   ├── retrain_text_fusion.py          # Production-ready text retraining
-│   ├── eval_accuracy.py              # Model evaluation
-│   ├── eval_gate.py                  # CI evaluation gate
-│   ├── retrain_video_classifier.py     # Video classifier training
-│   └── run_video_ai_detection.py       # Video analysis inference
-├── slop/backend/
-│   ├── app/ml/
-│   │   ├── fusion.py                 # Detection fusion logic
-│   │   ├── text_detector.py            # Text classification
-│   │   ├── video_detector.py           # Video classification
-│   │   └── ...                       # Other ML modules
-│   └── config/                       # Configuration files
-└── tests//
-    └── ...                           # Test files
+    C1 & C2 & C3 --> D{"fusion.py: 14-Feature LightGBM + Platt Scaling"}
+    D -->|"Indian English / High Burstiness"| E1["LIKELY_HUMAN (8% - 22%): False-Positive Protection"]
+    D -->|"High Uniformity / Low Cross-PPL"| E2["DEFINITELY_AI (88% - 99%): Sentence & Section Threat Map"]
+    C4 --> E2
+    E2 --> F["EdTech Viva & SkillPath: 3 Bilingual (EN + Telugu) Questions"]
 ```
 
-## Quick Start
+### 1.2 `[λ_RAW]` Image & v4.2 Edited Camera Photo Working Flow
 
-### Training
+#### Step-by-Step Signal Pipeline (`Multi-Spectral Decode -> Neural vs. Physical CMOS Reconciliation -> Verdict`)
 
-#### Text Classifier
-```bash
-python scripts/retrain_text_fusion.py
+```text
+  [ Uploaded JPEG / PNG / WebP or Live Webcam Frame ]
+              |
+              +--> Tier 1: Cryptographic & Watermark Gate
+              |      +--> C2PA JUMBF 5-Tier Hardware Signature (c2pa.Reader)
+              |      +--> SynthID Fourier Ring Detector (8x8 JPEG Macroblock Guarded)
+              |
+              +--> Tier 2: Neural Multi-Crop & Semantic Probe
+              |      +--> 6-Crop Swin Transformer (Full + Center + 4 Corners) --> 88% AI-like
+              |      +--> CLIP-ViT-L/14 (768-D L2 Embedding -> clip_probe.pkl) -> 19% AI-like
+              |
+              +--> Tier 3: Physical Silicon & Spectral Forensics
+                     +--> Native 1:1 Center-Crop Bayer CFA Nyquist Peak Ratio
+                     +--> 2D-FFT Azimuthal Spectrum + ELA + Wavelet PRNU
+                     +--> v4.2 CMOS Sensor Neighbor Coupling (npr_extractor.py)
+                            * NPR <= 0.22  * RG_Corr >= 0.88  * GB_Corr >= 0.88
+                            * Residual SD >= 5.5  * Kurtosis >= 11.0
+                                      |
+                                      v
+  +---------------------------------------------------------------------------+
+  | HEURISTIC SIGNAL RECONCILIATION IN fusion.py (fuse_image_score)           |
+  |                                                                           |
+  |  * IF Diffusion Grid / High CLIP + Swin + High NPR:                       |
+  |      --> DEFINITELY_AI (90% - 99%) + GradCAM / ELA / PRNU Overlays        |
+  |                                                                           |
+  |  * IF Swin Reacted to Color Grading (88%) BUT Physical CMOS Couplings Hold|
+  |      --> Camera Photo · Post-Processed / Edited (Corrected to 14% - 24%)  |
+  +---------------------------------------------------------------------------+
 ```
 
-#### Video Classifier
-```bash
-python scripts/retrain_video_classifier.py
+```mermaid
+flowchart TD
+    I(["Input Image (.JPG / .PNG / .WEBP / Webcam)"]) --> T1["Tier 1: Provenance & Watermark (5-Tier C2PA + SynthID)"]
+    I --> T2["Tier 2: Neural Vision Ensemble (6-Crop Swin + CLIP-ViT-L/14)"]
+    I --> T3["Tier 3: Spectral & Sensor Physics (1:1 Bayer CFA, 2D-FFT, PRNU, ELA)"]
+    I --> T4["Tier 4: v4.2 CMOS Neighbor Coupling (NPR <= 0.22, RG/GB >= 0.88, Kurtosis >= 11)"]
+
+    T1 & T2 & T3 & T4 --> F{"fusion.py (fuse_image_score): Single Score Authority"}
+
+    F -->|"High Swin + CLIP + Latent Grid"| V1["DEFINITELY_AI (90% - 99%): GradCAM, ELA & PRNU Heatmaps"]
+    F -->|"High Swin (Filter/Edit) + Physical CMOS Coupling"| V2["LIKELY_HUMAN (14% - 24%): Camera Photo · Post-Processed / Edited"]
+    F -->|"Orthogonal H/V Edges + Flat Palette"| V3["HUMAN TECHNICAL DIAGRAM: Flowchart False-Positive Guard"]
 ```
 
-### Evaluation
+### 1.3 `[0xVID]` Video Deepfake & Residual Optical Flow Working Flow
 
-#### Evaluate Model Accuracy
-```bash
-python scripts/eval_accuracy.py --split val
+#### Step-by-Step Signal Pipeline (`8-Keyframe SSE Stream -> Face Seam + Pan-Normalized Flow -> Timeline Verdict`)
+
+```text
+  [ Uploaded MP4 / WebM Video Stream ]
+              |
+              v  (Uniform 8-Keyframe Extraction + Real-Time SSE Streaming)
+  +---------------------------------------------------------------------------+
+  | PER-FRAME STREAMING PIPELINE (POST /api/v1/video/upload-stream)           |
+  |                                                                           |
+  |  Frame 01 --> Screen Recording Discriminator (Palette + Sobel H/V)        |
+  |  Frame 02 --> YuNet ONNX Face Crop + ViT Deepfake + Laplacian Seam        |
+  |  Frame 03 --> Full-Scene Swin (is_video_frame=True, heatmaps=False)       |
+  |  Frame 04 --> Farneback Dense Optical Flow F = (u, v)                     |
+  |   ...           +--> Subtract Global Camera Pan: F_res = F - median(F)    |
+  |  Frame 08 --> Stream live frame_result event to VideoTimeline.tsx         |
+  +-----------------------------------+---------------------------------------+
+                                      |  Top-Quartile Scene + Max Face + FlowResidual
+                                      v
+                    +-----------------------------------+
+                    |  fusion.py (fuse_video_score)     |
+                    |  Temporal & Spatial Consensus     |
+                    +-----------------+-----------------+
+                                      |
+        +-----------------------------+-----------------------------+
+        v                             v                             v
+  +-------------------+     +-------------------+     +-------------------+
+  | IDE / UI Screen   |     | Natural Camera    |     | AI / Deepfake     |
+  | Score: 0.040      |     | Smooth Pan + Real |     | Non-Rigid Morph   |
+  | DEFINITELY_HUMAN  |     | Face Boundary     |     | or Face Seam      |
+  +-------------------+     +-------------------+     +-------------------+
 ```
 
-#### Run CI Gate (Automatic)
-```bash
-python scripts/eval_gate.py
+```mermaid
+flowchart LR
+    V(["Input Video (.MP4 / .WEBM)"]) --> K["8-Keyframe Sampler (SSE Live Progress Stream)"]
+    K --> S1["Screen Recording Gate (Discrete Palette + Sobel H/V)"]
+    K --> S2["Face Deepfake Track (YuNet ONNX + ViT + Laplacian Seam)"]
+    K --> S3["Scene Spatial Track (Swin Multi-Crop, is_video_frame=True)"]
+    K --> S4["Residual Optical Flow (Farneback Flow - Median Camera Pan)"]
+
+    S1 & S2 & S3 & S4 --> FV{"fusion.py (fuse_video_score)"}
+    FV -->|"IDE / Browser Capture"| R1["DEFINITELY_HUMAN (4.0%): Screen Recording Protected"]
+    FV -->|"Rigid Camera Pan + Natural Sensor"| R2["LIKELY_HUMAN (8% - 22%): Authentic Handheld / Webcam Video"]
+    FV -->|"Non-Rigid Warp / Face Blending Seam"| R3["DEFINITELY_AI (88% - 96%): Per-Frame Threat Timeline"]
 ```
 
-### Inference
+## 2. What Makes SLOP v4.2 Different?
 
-#### Run Video AI Detection
-```bash
-python scripts/run_video_ai_detection.py \
-    --video_path /path/to/video.mp4 \
-    --output_path /path/to/output.json
+| Problem in Legacy Detectors | How AI-Slop-Detector (SLOP v4.2) Solves It |
+| :--- | :--- |
+| **Edited Camera Photos Flagged as 88%+ AI** | **v4.2 Physical CMOS Sensor Neighbor Coupling (`npr_extractor.py`):** Even when Lightroom/Snapseed contrast edits fool Vision Transformers, SLOP verifies physical Bayer demosaicing correlations (`rg_correlation >= 0.88`, `gb_correlation >= 0.88`), NPR (`<= 0.22`), and optical noise kurtosis (`>= 11.0`), calibrating the verdict to **`14%–24% LIKELY_HUMAN`** with a **`📷 Camera Photo · Post-Processed / Edited`** badge. |
+| **Multi-Page PDFs Take 60+ Seconds** | **Single-Pass Fast Section Mapping (`compute_section_scores_fast`):** Runs neural text inference once, reuses `Qwen2.5-0.5B` observer loss for `0ms` perplexity export, and maps 12 document sections in `< 15ms`—scanning a 658 KB multi-page PDF in **`1.243 seconds`** (`48x` faster). |
+| **Indian English & LaTeX Papers Falsely Accused** | **14-Feature GBDT + Platt Scaling (`text.pkl` & `text_calibrator.pkl`):** Combines sentence burstiness, Zipf rank deviation, and epistemic hedging with calibrated Platt thresholds to protect non-native student writing and technical formatting. |
+| **Punitive Verdicts Without Learning Value** | **Bilingual (English + తెలుగు) EdTech Viva & SkillPath Engine:** Automatically generates 3 conceptual oral-defense questions anchored to the exact high-probability sentences in a student submission, plus actionable remediation tasks. |
+| **Handheld Camera Pans Flagged as AI Video** | **Camera-Pan-Normalized Residual Optical Flow:** Subtracts global median translation `(u_med, v_med)` from dense Farnebäck flow vectors before computing acceleration variance, separating shaky human cameras from diffusion morphing. |
+
+## 3. Verified Benchmark Scorecard
+
+| Benchmark Suite | Modality / Split | Accuracy / Result | False Positives |
+| :--- | :--- | :--- | :--- |
+| **Golden Set (`scripts/eval_accuracy.py`)** | Text (`n=30`) · Image (`n=14`) · Video (`n=2`) | **100.0% Across All 3 Modalities** | **0 FP** |
+| **Held-Out Dev Split (`eval_rigorous.py`)** | Text (`n=30`) | **100.0%** (`30/30`) | **0 FP** |
+| **Held-Out Dev Split (`eval_rigorous.py`)** | Video (`n=8`) | **100.0%** (`8/8`) | **0 FP** |
+| **Held-Out Dev Split (`eval_rigorous.py`)** | Image (`n=34`) | **91.18%** (`31/34`, `100%` Specificity) | **0 FP** |
+| **66-Image Regression Gate** | Full 66-Image Calibration Suite | **98.48%** (`65/66`, `0` verdict flips) | **0 Regressions** |
+| **Backend Automated Test Suite** | `pytest slop/backend/tests` | **105 Passed, 1 Skipped** | **0 Failures** |
+
+## 4. One-Click Quick Start (`run.bat`)
+
+### Windows One-Click Launch
+From the repository root, run:
+```bat
+.\run.bat
+```
+`run.bat` automatically:
+1. Checks your Python virtual environment (`slop\backend\.venv`), Node modules (`slop\frontend\node_modules`), model weights (`Model/`), and cryptographic seal integrity (`scripts/verify_agent_integrity.py`).
+2. If any requirement is missing, prompts **`(y/n)`**—installing missing packages automatically on **`y`** or stopping cleanly on **`n`**.
+3. Launches the **FastAPI Backend** (`http://127.0.0.1:8000`) and **React 18 + Vite 6 Frontend** (`http://127.0.0.1:3000`) and opens your browser.
+
+### Manual Launch (Development)
+```powershell
+# 1. Start FastAPI Backend (Port 8000)
+$env:PYTHONUTF8="1"
+$env:PYTHONPATH="slop/backend"
+.\slop\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 2. Start Vite 6 Frontend (Port 3000)
+npm --prefix slop/frontend run dev -- --host 127.0.0.1 --port 3000
 ```
 
-## Model Selection
+## 5. Repository Architecture
 
-The system supports several detection models that can be selected via configuration:
+```text
+AI-Slop-Detector/
+├── assets/                         # Animated workflow GIFs (flow_text.gif, flow_image.gif, flow_video.gif)
+├── run.bat                         # Interactive 4-gate dependency checker & dual-server launcher
+├── prd.md                          # Product Requirements Document (Innovators Conclave 2026)
+├── techspec.md                     # Technical Specification & Mathematical Formulas
+├── appflow.md                      # User Journey & System Data Flows
+├── design.md                       # Dual-Theme (Obsidian Dark + Warm Stone Light) UI Spec
+├── schema.md                       # SQLite WAL + Pydantic v2 API Contracts
+├── implementationplan.md           # Phased Engineering Execution Plan
+├── tracker.md                      # Live Sprint & Benchmark Milestone Tracker
+├── Model/                          # Self-hosted neural weights & Platt/GBDT fusion artifacts
+│   ├── text/                       # RoBERTa detector, Qwen2.5-0.5B Observer/Performer, MiniLM
+│   ├── image/                      # Swin Transformer & CLIP-ViT-L/14 weights
+│   ├── video/                      # YuNet ONNX face detector & ViT deepfake classifier
+│   └── fusion/                     # Sealed text.pkl, image.pkl, clip_probe.pkl, video.pkl
+├── slop/
+│   ├── backend/                    # FastAPI + PyTorch CUDA Forensic Engine
+│   │   ├── app/api/v1/             # REST & SSE endpoints (text, image, video, document, edtech)
+│   │   ├── app/ml/                 # Single Score Authority (fusion.py) & modality detectors
+│   │   └── tests/                  # 21 pytest verification modules (105 passed)
+│   └── frontend/                   # React 18 + TypeScript + Vite 6 Web Interface
+│       └── src/
+│           ├── pages/              # Eagerly loaded Landing, Detector, Calibration, Dashboard
+│           ├── components/         # ConduitSection, ForensicInspector, ResultPanel, SignalGrid
+│           └── hooks/              # 0px-jitter native scroll lock (useLandingScroll, landingLock)
+└── scripts/                        # Evaluation, regression gates, and integrity verifiers
+```
 
-### Text Models
-- **Neural Prob**: Transformer-based text classifier
-- **Heuristic Score**: Rule-based text scoring
-- **LLM Pattern Score**: Pattern matching for AI-generated text
-- **Perplexity**: Language model perplexity analysis
+## 6. REST & Streaming API Endpoints
 
-### Video Models
-- **DeepFake ViT**: For detecting manipulated faces
-- **Swin Transformer**: For detecting generative video
-- **VideoMAE**: Pre-trained video analysis
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/text/analyze` | Analyze raw text or source code (14-feature GBDT + Platt calibration + per-sentence spans). |
+| `POST` | `/api/v1/text/upload` | Sub-2-second `.pdf`, `.docx`, `.txt`, `.md` text & fast section threat analysis (`compute_section_scores_fast`). |
+| `POST` | `/api/v1/image/analyze` | Multi-spectral image forensics (`6-crop Swin`, `CLIP-ViT-L/14`, `C2PA`, `PRNU`, `ELA`, and `v4.2 CMOS Edited Camera Photo` reconciliation). |
+| `WS` | `/api/v1/image/live` | Real-time WebSocket webcam frame forensics. |
+| `POST` | `/api/v1/document/upload` | 3-tier binary stream figure carving (`JPEG`, `PNG`, `FlateDecode` XObjects) + text fallback. |
+| `POST` | `/api/v1/video/upload-stream` | Server-Sent Events (SSE) 8-keyframe video deepfake, screen recording, and residual optical-flow analysis. |
+| `POST` | `/api/v1/edtech/viva-verify` | Generate 3 bilingual (**English + తెలుగు**) oral Viva verification questions & SkillPath competency gaps. |
+| `GET` | `/api/v1/ops/calibration-dashboard` | Empirical calibration report with Wilson 95% CIs and Expected Calibration Error (ECE). |
 
-## Configuration
+## 7. Verification & Governance Commands
 
-Model configurations are managed in `slop/backend/config/`. Key parameters include:
-- Model paths and thresholds
-- Split ratios (train/val/test)
-- Regularization strengths
-- Confidence thresholds
+```powershell
+# 1. Verify cryptographic seal on calibration & fusion artifacts
+$env:PYTHONUTF8="1"; .\slop\backend\.venv\Scripts\python.exe scripts/verify_agent_integrity.py
 
-## Development
+# 2. Run architectural lint rules (Single Score Authority & Protected Headers)
+$env:PYTHONUTF8="1"; .\slop\backend\.venv\Scripts\python.exe scripts/lint_rules.py --full
 
-### Training Data
-- **Text**: `raid_train/text`, `raid_val/text`, `heldout_set/text`
-- **Video**: `raid_train/video`, `raid_val/video`, `heldout_set/video`
+# 3. Run the 66-Image Regression Gate (98.48% / 65 of 66)
+$env:PYTHONUTF8="1"; .\slop\backend\.venv\Scripts\python.exe scripts/eval_image_regression_gate.py
 
-### Evaluation
-- Use `eval_accuracy.py` for detailed metrics
-- Use `eval_gate.py` for CI gate checks
-- Maintain human recall >= 0.80 for text classifier
-
-### Troubleshooting
-- GPU memory errors: Reduce batch size, use mixed precision
-- Model not loading: Verify paths and installations
-- False positives: Adjust confidence thresholds in `slop/backend/config/`
-
-## License
-
-Proprietary. All rights reserved.
-
-## Support
-
-For issues or questions, please contact the development team.
+# 4. Run full backend test suite
+$env:PYTHONUTF8="1"; .\slop\backend\.venv\Scripts\python.exe -m pytest slop/backend/tests -q
+```

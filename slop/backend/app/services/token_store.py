@@ -28,10 +28,7 @@ class InMemoryTokenStore:
     def consume_refresh(self, raw_token: str) -> RefreshRecord | None:
         token_hash = sha256_token(raw_token)
         record = self.refresh_tokens.get(token_hash)
-        if not record or record.expires_at < time.time():
-            return None
-        if record.revoked:
-            self.revoke_family(record.family_id)
+        if not record or record.revoked or record.expires_at < time.time():
             return None
         record.revoked = True
         return record

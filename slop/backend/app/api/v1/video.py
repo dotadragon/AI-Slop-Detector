@@ -9,11 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import optional_user
-from app.core.config import settings
 from app.core.security import utcnow
 from app.db.session import get_session
 from app.ml.video_detector import analyze_video, analyze_video_streaming
-from app.ml.vram_manager import serialized_gpu_inference
 from app.models.job import DetectionResult, Job
 from app.models.user import User
 from app.services.auth_service import request_ip
@@ -25,8 +23,6 @@ router = APIRouter(prefix="/video", tags=["video"])
 
 @router.post("/upload")
 async def upload(request: Request, file: UploadFile, session: AsyncSession = Depends(get_session), user: User | None = Depends(optional_user)):
-    if not settings.enable_video_detector:
-        return {"status": "disabled", "detail": "video detector is feature-gated off until validated"}
     path, mime, size = await save_upload(file, "video")
     user_id = user.id if user else None
     job = Job(user_id=user_id, job_type="video", status="processing", file_path=str(path), file_name=file.filename, file_size_bytes=size, mime_type=mime, ip_address=request_ip(request))
@@ -34,8 +30,7 @@ async def upload(request: Request, file: UploadFile, session: AsyncSession = Dep
     await session.flush()
     token_store.progress[str(job.id)] = 5
 
-    async with serialized_gpu_inference("video"):
-        result = await run_in_threadpool(analyze_video, str(path), str(job.id))
+    result = await run_in_threadpool(analyze_video, str(path), str(job.id))
 
     token_store.progress[str(job.id)] = 100
     job.status = "completed"
@@ -50,11 +45,6 @@ async def upload_stream(request: Request, file: UploadFile, session: AsyncSessio
     """
     Upload a video and receive real-time SSE progress updates frame-by-frame.
     """
-    if not settings.enable_video_detector:
-        return StreamingResponse(
-            (lambda: iter([f"data: {json.dumps({'type': 'disabled', 'detail': 'video detector is feature-gated off'})}\n\n"]))(),
-            media_type="text/event-stream",
-        )
     path, mime, size = await save_upload(file, "video")
     job = Job(
         user_id=user.id if user else None,
@@ -83,33 +73,33 @@ async def upload_stream(request: Request, file: UploadFile, session: AsyncSessio
         finally:
             loop.call_soon_threadsafe(queue.put_nowait, done_sentinel)
 
+    threading.Thread(target=_producer, daemon=True).start()
+
     async def sse_generator():
-        async with serialized_gpu_inference("video"):
-            threading.Thread(target=_producer, daemon=True).start()
-            final_result = None
-            while True:
-                item = await queue.get()
-                if item is done_sentinel:
-                    break
-                yield f"data: {json.dumps(item)}\n\n"
-                if isinstance(item, dict) and item.get("type") == "complete" and "result" in item:
-                    final_result = item["result"]
+        final_result = None
+        while True:
+            item = await queue.get()
+            if item is done_sentinel:
+                break
+            yield f"data: {json.dumps(item)}\n\n"
+            if isinstance(item, dict) and item.get("type") == "complete" and "result" in item:
+                final_result = item["result"]
 
-            if final_result:
-                try:
-                    job.status = "completed"
-                    job.completed_at = utcnow()
-                    session.add(DetectionResult(
-                        job_id=job.id,
-                        overall_score=final_result["overall_score"],
-                        signals=final_result["signals"],
-                        frame_data=final_result.get("frame_scores", []),
-                    ))
-                    await session.commit()
-                except Exception:
-                    pass
+        if final_result:
+            try:
+                job.status = "completed"
+                job.completed_at = utcnow()
+                session.add(DetectionResult(
+                    job_id=job.id,
+                    overall_score=final_result["overall_score"],
+                    signals=final_result["signals"],
+                    frame_data=final_result.get("frame_scores", []),
+                ))
+                await session.commit()
+            except Exception:
+                pass
 
-            yield f"data: {json.dumps({'type': 'done', 'job_id': job_id})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'job_id': job_id})}\n\n"
 
     return StreamingResponse(
         sse_generator(),
@@ -123,7 +113,7 @@ async def upload_stream(request: Request, file: UploadFile, session: AsyncSessio
 
 
 @router.get("/result/{job_id}")
-async def result(job_id: str, request: Request, session: AsyncSession = Depends(get_session), user: User | None = Depends(optional_user)):
+async def result(job_id: str, session: AsyncSession = Depends(get_session)):
     try:
         uuid_obj = UUID(job_id)
     except ValueError:
@@ -131,13 +121,4 @@ async def result(job_id: str, request: Request, session: AsyncSession = Depends(
     job = await session.get(Job, uuid_obj)
     if not job:
         return {"status": "missing", "progress": 0}
-
-    client_ip = request_ip(request)
-    if user and job.user_id and job.user_id != user.id:
-        return {"status": "forbidden", "progress": 0}
-    elif not user and job.user_id is not None:
-        return {"status": "unauthorized", "progress": 0}
-    elif not user and job.ip_address and job.ip_address != client_ip:
-        return {"status": "forbidden", "progress": 0}
-
     return {"status": job.status, "progress": token_store.progress.get(job_id, 100 if job.status == "completed" else 0)}

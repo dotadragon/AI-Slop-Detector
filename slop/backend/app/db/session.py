@@ -1,4 +1,3 @@
-from collections.abc import AsyncGenerator
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -34,7 +33,7 @@ def _configure_sqlite_connection(dbapi_connection, connection_record):
         pass
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
 
