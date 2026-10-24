@@ -2,53 +2,17 @@
 **Multi-Modal Forensic AI Content Detection & Bilingual EdTech Verification Platform**
 
 **Stack:** FastAPI + PyTorch CUDA + React 18 + TypeScript + Vite 6  
-**Verified Benchmarks:** `100.0%` Golden Set | `98.48%` (65/66) Image Regression Gate | `100.0%` Dev Text & Video | `1.243s` Multi-Page PDF Scan
+**Verified Benchmarks:** `100.0%` Golden Set | `98.48%` (65/66) Image Regression Gate | `100.0%` Dev Text & Video | `1.243s` Multi-Page PDF Scan (Training)
 
-**Full-stack multi-modal AI forensics suite** across **Text, Image, Document (PDF/DOCX), Video, and Audio**—combining calibrated neural ensembles, physical CMOS camera sensor coupling, sub-2-second PDF figure carving, residual optical-flow deepfake analysis, and **Bilingual (English + Telugu) EdTech Viva-Voce generation**.
+**Full-stack multi-modal AI forensics suite** across **Text, Image, Document (PDF/DOCX), Video, and Audio**—combining calibrated neural ensembles, physical CMOS camera sensor coupling, sub-2-second PDF figure carving, residual optical-flow deepfake analysis, and **Bilingual (English) EdTech Viva-Voce generation**.
 
 ## 1. End-to-End Working Flows (Text, Image & Video)
 
 Below are the three core forensic pipelines showing how **AI-Slop-Detector** processes raw uploads into calibrated, explainable verdicts through a **Single Mathematical Score Authority (`fusion.py`)**.
 
-### 1.1 `[0xTXT]` Text, Code & Sub-2s PDF Working Flow
+### 1.1 Text, Code & Sub-2s PDF Working Flow
 
 #### Step-by-Step Signal Pipeline (`Token Stream -> Dual-LLM Cross-Perplexity -> Platt-Calibrated Verdict + Bilingual Viva`)
-
-```text
-  [ Raw Prose / Source Code / Multi-Page PDF ]
-              |
-              v  (NFKC Sanitization + Zero-Width Steganography Strip)
-  +---------------------------------------------------------------------------+
-  | PARALLEL FEATURE EXTRACTION (< 1.25s for Multi-Page PDF)                  |
-  |                                                                           |
-  |  +--> [1] RoBERTa 8-Chunk Batched Sliding Window ------> P_neural = 0.91  |
-  |  |        (Single Tensor Pass, max_len=512, decay w_i)                    |
-  |  |                                                                        |
-  |  +--> [2] Binoculars Observer/Performer Cross-PPL -----> B(T)     = 0.84  |
-  |  |        (Qwen2.5-0.5B Base vs Instruct + 0ms PPL reuse)                 |
-  |  |                                                                        |
-  |  +--> [3] 13 Stylometric & Structural Extractors ------> Burst    = 0.19  |
-  |  |        (Burstiness SD/Mean, Zipf, Hedging, MiniLM, AST)                |
-  |  |                                                                        |
-  |  +--> [4] Fast Section Mapper (compute_section_scores_fast in < 15ms)     |
-  +-----------------------------------+---------------------------------------+
-                                      |  14-Feature Vector
-                                      v
-                    +-----------------------------------+
-                    |  Single Score Authority           |
-                    |  LightGBM (text.pkl) + Platt      |
-                    |  Calibration (text_calibrator.pkl)|
-                    +-----------------+-----------------+
-                                      |
-                   +------------------+------------------+
-                   v                                     v
-   +-------------------------------+     +-------------------------------+
-   | Calibrated Verdict & UI       |     | Bilingual EdTech Viva         |
-   | * Overall AI Prob + 95% CI    |     | * Top-3 High-Risk Sentences   |
-   | * Sentence Attribution Map    |     | * English + Telugu Viva Q&A   |
-   | * Section Threat Heatmap      |     | * SkillPath Competency Gaps   |
-   +-------------------------------+     +-------------------------------+
-```
 
 ```mermaid
 flowchart LR
@@ -71,39 +35,9 @@ flowchart LR
     C4 --> F2
 ```
 
-### 1.2 `[λ_RAW]` Image & v4.2 Edited Camera Photo Working Flow
+### 1.2 Image & v4.2 Edited Camera Photo Working Flow
 
 #### Step-by-Step Signal Pipeline (`Multi-Spectral Decode -> Neural vs. Physical CMOS Reconciliation -> Verdict`)
-
-```text
-  [ Uploaded JPEG / PNG / WebP or Live Webcam Frame ]
-              |
-              +--> Tier 1: Cryptographic & Watermark Gate
-              |      +--> C2PA JUMBF 5-Tier Hardware Signature (c2pa.Reader)
-              |      +--> SynthID Fourier Ring Detector (8x8 JPEG Macroblock Guarded)
-              |
-              +--> Tier 2: Neural Multi-Crop & Semantic Probe
-              |      +--> 6-Crop Swin Transformer (Full + Center + 4 Corners) --> 88% AI-like
-              |      +--> CLIP-ViT-L/14 (768-D L2 Embedding -> clip_probe.pkl) -> 19% AI-like
-              |
-              +--> Tier 3: Physical Silicon & Spectral Forensics
-                     +--> Native 1:1 Center-Crop Bayer CFA Nyquist Peak Ratio
-                     +--> 2D-FFT Azimuthal Spectrum + ELA + Wavelet PRNU
-                     +--> v4.2 CMOS Sensor Neighbor Coupling (npr_extractor.py)
-                            * NPR <= 0.22  * RG_Corr >= 0.88  * GB_Corr >= 0.88
-                            * Residual SD >= 5.5  * Kurtosis >= 11.0
-                                      |
-                                      v
-  +---------------------------------------------------------------------------+
-  | HEURISTIC SIGNAL RECONCILIATION IN fusion.py (fuse_image_score)           |
-  |                                                                           |
-  |  * IF Diffusion Grid / High CLIP + Swin + High NPR:                       |
-  |      --> DEFINITELY_AI (90% - 99%) + GradCAM / ELA / PRNU Overlays        |
-  |                                                                           |
-  |  * IF Swin Reacted to Color Grading (88%) BUT Physical CMOS Couplings Hold|
-  |      --> Camera Photo · Post-Processed / Edited (Corrected to 14% - 24%)  |
-  +---------------------------------------------------------------------------+
-```
 
 ```mermaid
 flowchart TD
@@ -119,39 +53,10 @@ flowchart TD
     F -->|"Orthogonal H/V Edges + Flat Palette"| V3["HUMAN TECHNICAL DIAGRAM: Flowchart False-Positive Guard"]
 ```
 
-### 1.3 `[0xVID]` Video Deepfake & Residual Optical Flow Working Flow
+### 1.3 Video Deepfake & Residual Optical Flow Working Flow
 
 #### Step-by-Step Signal Pipeline (`8-Keyframe SSE Stream -> Face Seam + Pan-Normalized Flow -> Timeline Verdict`)
 
-```text
-  [ Uploaded MP4 / WebM Video Stream ]
-              |
-              v  (Uniform 8-Keyframe Extraction + Real-Time SSE Streaming)
-  +---------------------------------------------------------------------------+
-  | PER-FRAME STREAMING PIPELINE (POST /api/v1/video/upload-stream)           |
-  |                                                                           |
-  |  Frame 01 --> Screen Recording Discriminator (Palette + Sobel H/V)        |
-  |  Frame 02 --> YuNet ONNX Face Crop + ViT Deepfake + Laplacian Seam        |
-  |  Frame 03 --> Full-Scene Swin (is_video_frame=True, heatmaps=False)       |
-  |  Frame 04 --> Farneback Dense Optical Flow F = (u, v)                     |
-  |   ...           +--> Subtract Global Camera Pan: F_res = F - median(F)    |
-  |  Frame 08 --> Stream live frame_result event to VideoTimeline.tsx         |
-  +-----------------------------------+---------------------------------------+
-                                      |  Top-Quartile Scene + Max Face + FlowResidual
-                                      v
-                    +-----------------------------------+
-                    |  fusion.py (fuse_video_score)     |
-                    |  Temporal & Spatial Consensus     |
-                    +-----------------+-----------------+
-                                      |
-        +-----------------------------+-----------------------------+
-        v                             v                             v
-  +-------------------+     +-------------------+     +-------------------+
-  | IDE / UI Screen   |     | Natural Camera    |     | AI / Deepfake     |
-  | Score: 0.040      |     | Smooth Pan + Real |     | Non-Rigid Morph   |
-  | DEFINITELY_HUMAN  |     | Face Boundary     |     | or Face Seam      |
-  +-------------------+     +-------------------+     +-------------------+
-```
 
 ```mermaid
 flowchart LR
