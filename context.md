@@ -69,13 +69,24 @@ c:\Users\karth\Desktop\AISlop\
 │   │   ├── .venv/                  # Dedicated Python 3.12 virtualenv (CUDA 12.4, PyTorch, Transformers)
 │   │   ├── slop.db                 # Active backend SQLite database (WAL mode, busy_timeout=5000)
 │   │   ├── requirements.txt        # Full backend & ML requirements
-│   │   ├── tests/                  # Automated pytest verification test suite (40/40 passing)
+│   │   ├── tests/                  # Automated pytest verification test suite (>90 passing)
+│   │   │   ├── conftest.py             # Test fixtures & isolated singleton VRAM cleaners
 │   │   │   ├── test_api_contract.py    # Request/response schema contracts
+│   │   │   ├── test_audio_detector.py  # Audio Wav2Vec2 + spectral deepfake tests
 │   │   │   ├── test_auth.py            # Authentication, registration, TOTP, and honeypot tests
 │   │   │   ├── test_detection.py       # Text, Image, WebSocket live scan, Diagram & Camera tests
+│   │   │   ├── test_document_forensics.py # PDF/DOCX figure stream carving & text fallback tests
+│   │   │   ├── test_feedback_endpoint.py # Ops feedback queue & verdict disagreement tests
 │   │   │   ├── test_golden_set_accuracy.py # Golden set automated accuracy tests
+│   │   │   ├── test_hardening_phases.py# Phases 1-8 hardening regression tests
+│   │   │   ├── test_image_regression_gate.py # Image verdict consistency gate tests
+│   │   │   ├── test_no_hard_clamp.py   # Rule 3 & 5 ban validation against score clamps
+│   │   │   ├── test_no_inversion.py    # Probe validation against signal inversion
+│   │   │   ├── test_pdf_and_camera_fixes.py # 2s PDF extraction & CMOS edited camera photo tests
+│   │   │   ├── test_phase1_to_4.py     # RTR token revocation, 2FA backup, VRAM locks
 │   │   │   ├── test_security.py        # Security headers, CSRF enforcement, method guards
 │   │   │   ├── test_security_audit.py  # Prompt injection, Unicode NFKC sanitization, zip bombs
+│   │   │   ├── test_signature_confidence.py # SynthID spectral confidence gating
 │   │   │   └── test_video_production.py# Video info extraction, AI video detection, screen rec discrimination
 │   │   ├── app/
 │   │   │   ├── main.py             # FastAPI entrypoint, middleware stack, lifespan events, /health
@@ -84,12 +95,14 @@ c:\Users\karth\Desktop\AISlop\
 │   │   │   │   └── v1/
 │   │   │   │       ├── router.py   # Master /api/v1 router aggregation
 │   │   │   │       ├── auth.py     # Login, register, 2FA/TOTP, token refresh, logout
-│   │   │   │       ├── text.py     # /api/v1/text/analyze, /upload, /result/{id}
+│   │   │   │       ├── text.py     # /api/v1/text/analyze, /upload, /result/{id}, /compare
 │   │   │   │       ├── image.py    # /api/v1/image/analyze, /live (WebSocket), /heatmap/{id}
 │   │   │   │       ├── video.py    # /api/v1/video/upload, /upload-stream (SSE timeline updates)
+│   │   │   │       ├── audio.py    # /api/v1/audio/upload, /upload-stream (SSE timeline), /result
+│   │   │   │       ├── document.py # /api/v1/document/upload, /result (embedded figure forensics)
 │   │   │   │       ├── jobs.py     # Background job status & asynchronous result retrieval
 │   │   │   │       ├── billing.py  # Stripe webhook handling & subscription management
-│   │   │   │       └── ops.py      # System observability, health probes, and VRAM telemetry
+│   │   │   │       └── ops.py      # System observability, feedback queue, VRAM telemetry
 │   │   │   ├── core/
 │   │   │   │   ├── config.py       # Pydantic Settings (.env configuration & hardware device selection)
 │   │   │   │   ├── middleware.py   # CSRF, sliding-window DDoS, security headers, method guards
@@ -99,15 +112,21 @@ c:\Users\karth\Desktop\AISlop\
 │   │   │   │   ├── session.py      # Async SQLAlchemy 2.0 engine, PRAGMA WAL, get_session generator
 │   │   │   │   └── migrations/     # Alembic database schema migrations
 │   │   │   ├── ml/                 # Machine Learning Detection Engines & Forensics
-│   │   │   │   ├── image_detector.py     # Swin ViT, Multi-crop, GradCAM, PRNU, CFA, ELA, C2PA Reader
-│   │   │   │   ├── text_detector.py      # RoBERTa sequence classifier, 13 stylometrics, LLM patterns, Bleach
+│   │   │   │   ├── image_detector.py     # Swin ViT, Multi-crop, GradCAM, PRNU, CFA, ELA, CMOS sensor coupling
+│   │   │   │   ├── text_detector.py      # RoBERTa sequence classifier, 13 stylometrics, LLM patterns, 48-sent cap
 │   │   │   │   ├── video_detector.py     # Dual-track: YuNet face ViT + Swin full-scene + Farnebäck optical flow
+│   │   │   │   ├── audio_detector.py     # Wav2Vec2 deepfake classifier + spectral artifact harmonics (flagged off)
+│   │   │   │   ├── document_forensics.py # Fast-carve PDF/DOCX figure extractor (<2s scans) + text fallback
 │   │   │   │   ├── binoculars.py         # Binoculars cross-perplexity (Qwen-0.5B Observer & Performer pair)
+│   │   │   │   ├── perplexity.py         # Qwen-2.5-0.5B LM perplexity & semantic coherence extractor
 │   │   │   │   ├── clip_probe.py         # CLIP-ViT-L/14 semantic anomaly linear probe
-│   │   │   │   ├── fusion.py             # Calibrated multi-modal ensemble fusion engine
+│   │   │   │   ├── c2pa_trust.py         # Cryptographic C2PA tier validation (CAI root trust anchors)
+│   │   │   │   ├── reconstruction_detector.py # Diffusion-VAE round-trip reconstruction error (DIRE)
+│   │   │   │   ├── freq_detector.py      # Frequency-domain spectral roughness & DCT statistics
+│   │   │   │   ├── fusion.py             # Calibrated multi-modal ensemble fusion engine (Single Scoring Authority)
 │   │   │   │   ├── signature_detector.py # SynthID spectral analysis, PRNU sensor noise floor, generator attribution
 │   │   │   │   └── vram_manager.py       # Hardware VRAM governor, Semaphore(1) lock, empty_cache() context eviction
-│   │   │   ├── models/             # SQLAlchemy ORM Data Models (User, SecurityAuditLog, Job, DetectionResult)
+│   │   │   ├── models/             # SQLAlchemy ORM Data Models (User, SecurityAuditLog, Job, DetectionResult, UserFeedback)
 │   │   │   ├── schemas/            # Pydantic Request/Response DTO schemas
 │   │   │   ├── services/           # Business logic (auth_service, token_store, audit_service)
 │   │   │   └── utils/              # File upload validation, text extraction (PDF, DOCX, TXT)
@@ -117,11 +136,32 @@ c:\Users\karth\Desktop\AISlop\
 │       ├── vite.config.ts          # Vite configuration with IPv4 proxy to http://127.0.0.1:8000
 │       ├── src/
 │       │   ├── main.tsx            # React DOM mounting
-│       │   ├── App.tsx             # React Router v7 routes, Lenis smooth scroll setup
+│       │   ├── App.tsx             # React Router v7 routes, route code-splitting, lazy imports
 │       │   ├── index.css           # Cyber-slate design tokens, GPU compositor animations, zero CLS
-│       │   ├── pages/              # Landing, Detector, Dashboard, Login, Register, Billing, etc.
-│       │   ├── components/detector/# ResultPanel, TextInput, ImageUpload, VideoUpload, SignalGrid
-│       │   └── hooks/              # useDetection, useScanHistory, useSeo, useJobSocket
+│       │   ├── pages/
+│       │   │   ├── Landing.tsx     # Clean modular Landing composition
+│       │   │   ├── Detector.tsx    # Multi-modal detection workspace
+│       │   │   ├── Calibration.tsx # Calibration & benchmark dashboard
+│       │   │   ├── Dashboard.tsx, Login.tsx, Register.tsx, Billing.tsx, etc.
+│       │   │   └── landing/
+│       │   │       ├── landingLock.ts     # Jitter-free 4-stage wheel scroll lock & hard scrollY clamping
+│       │   │       └── useLandingScroll.ts# Monotonic stage step advancement hook
+│       │   ├── components/
+│       │   │   ├── landing/        # Modularized landing components (Ponytail architecture)
+│       │   │   │   ├── ConduitSection.tsx    # Scroll-driven animated SVG conduits connecting modules
+│       │   │   │   ├── ForensicInspector.tsx # Interactive 4-stage multi-spectral inspection scanner
+│       │   │   │   ├── InspectorGraphics.tsx # Canvas/SVG rendering for spectral layer visuals
+│       │   │   │   ├── spectralLayers.ts     # Spectral decomposition math & layer data
+│       │   │   │   ├── HeroSection.tsx, CtaBanner.tsx
+│       │   │   ├── detector/       # Modularized detector interface components
+│       │   │   │   ├── DetectorModalityPanes.tsx # Panes for Text, Image, Video, Audio, Document
+│       │   │   │   ├── ForensicBreakdowns.tsx    # Signal cards, PRNU residuals, CFA charts
+│       │   │   │   ├── DocumentBreakdowns.tsx    # Extracted embedded figures gallery & scores
+│       │   │   │   ├── LLMAttributionCard.tsx    # Generator attribution badge & probability
+│       │   │   │   ├── ResultPanel.tsx, ScoreCard.tsx, SignalGrid.tsx, SentenceHighlight.tsx
+│       │   │   │   ├── TextInput.tsx, ImageUpload.tsx, VideoUpload.tsx, AudioUpload.tsx, DocumentUpload.tsx
+│       │   │   │   └── signalMeta.ts         # Signal metadata, weights, and explanatory tooltips
+│       │   └── hooks/              # useDetection, useScanHistory, useSeo, useLandingScroll, useFileDrop, useLiveWebcamStream
 │
 ├── .agents/skills/                 # Active production agent skills
 └── keys/                           # Asymmetric RSA key pairs for JWT token signing
@@ -158,46 +198,41 @@ The project is strictly standardized on the backend virtual environment:
 
 #### Pipeline Tiers
 1. **Tier 1 — Cryptographic Provenance & Container Integrity**:
-   * `_check_c2pa()`: Parses Adobe/OpenAI/Google C2PA JUMBF cryptographic manifests via `c2pa.Reader(file_path)`. Verified C2PA authenticates human media and multiplies score by $0.15$.
+   * `_check_c2pa()`: Parses Adobe/OpenAI/Google C2PA JUMBF cryptographic manifests via `c2pa.Reader(file_path)`. Evaluates certificate trust chains (`c2pa_trust.py`) against CAI root trust anchors.
    * `_check_exif()`: Scans EXIF headers for camera sensor metadata, lens profiles, or editing signatures (Photoshop, Midjourney).
-2. **Tier 2 — Physical Sensor & Frequency Signals**:
+2. **Tier 2 — Physical Sensor, Frequency & Optical Neighbor Signals**:
    * `_ela_score()`: Error Level Analysis detects compression divergence across 8x8 blocks at Q=90.
    * `_fft_score()`: 2D-FFT azimuthal radial integration exposes periodic upsampling lattices.
    * `_cfa_score()`: Bayer Color Filter Array (RGGB) demosaicing peak analysis. Gated by `_estimate_jpeg_quality()`; when JPEG quality is $<95$, CFA penalties are neutralized to prevent false positives from chroma subsampling.
    * `_dct_block_score()`: Evaluates 8x8 DCT coefficient high-frequency energy consistency.
    * `generate_prnu_noise_map()`: Extracts Photo-Response Non-Uniformity sensor noise residual floor (`prnu_heatmap_b64`) to reveal hardware silicon fingerprints versus synthetic latents.
+   * **v4.2 Physical CMOS Sensor Neighbor Forensics (`is_edited_camera_photo`)**: Evaluates inter-channel pixel correlations (`rg_correlation`, `gb_correlation`), noise residual standard deviation (`residual_std`), and kurtosis (`mean_kurtosis`). When an authentic camera photo undergoes heavy color grading, Instagram filters, or Lightroom adjustments, the Swin transformer can produce false-positive spikes; the presence of true physical silicon sensor couplings (`rg_corr >= 0.88`, `gb_corr >= 0.88`, `|rg - gb| <= 0.08`, `res_std >= 5.5`, `kurtosis >= 11.0`) confirms authentic camera provenance.
 3. **Tier 3 — Deep Neural Vision Transformer & CLIP Probe**:
    * Backbone: Swin Transformer (`Model/image/` or AutoTrain Swin-Base) + CLIP-ViT-L/14 linear probe (`Model/image/clip_vit_large/` and `Model/fusion/clip_probe.pkl`).
    * Multi-crop: Confidence-weighted voting over full frame, center crop, and 4 corner crops.
    * Explainability: Native PyTorch GradCAM heatmap generation (`gradcam_b64`).
-4. **Tier 4 — Neural-First Consensus Integration**:
+4. **Tier 4 — Neural-First Consensus Integration (`fusion.py`)**:
    * If $\text{best\_neural} \ge 0.70$: Deep neural model holds **85% primary authority**. Diagram and camera suppression heuristics are completely bypassed.
    * Diagram classification ($0.030$ score) is strictly gated to images where $\text{best\_neural} < 0.70$.
    * Authentic camera photo classification ($\le 0.080$ score) is strictly gated to images where $\text{best\_neural} < 0.50$ and sensor noise is verified.
+   * Edited camera photo correction: When `is_edited_camera_photo == 1.0`, `fusion.py` bounds the score to authentic range ($0.14 - 0.24$) and sets `primary_signal: "optical_sensor_edited_photo"`.
 
 ---
 
-### B. Text Forensics Engine (`text_detector.py` & `binoculars.py`)
+### B. Text Forensics Engine (`text_detector.py`, `binoculars.py`, `perplexity.py`)
 
 * **Dual-Engine Architecture**:
-  1. **RoBERTa Classifier**: Fast discriminative sequence classification fine-tuned on ChatGPT vs Human.
+  1. **RoBERTa Classifier & Fine-Tuned Transformer**: Fast discriminative sequence classification fine-tuned on multi-generator distributions.
   2. **Binoculars Zero-Shot Detection**: Perplexity cross-ratio computed between Qwen-2.5-0.5B (Observer) and Qwen-2.5-0.5B-Instruct (Performer) models:
      $$\text{Score} = \frac{\log \text{PPL}_{\text{performer}}(T)}{\log \text{PPL}_{\text{observer}}(T)}$$
 * **Frontier Calibration (2025/2026)**: Calibrated against GPT-4o, Claude 3.5 Sonnet, Gemini 1.5/2.0, and DeepSeek-R1. High-evidence frontier markers activate `calibrated_frontier_ensemble` mode.
-* **13 Explainable Stylometrics**:
-  1. `perplexity`: Character & token transitional variance.
-  2. `burstiness`: Sentence length variance across paragraphs.
-  3. `stylometry_score`: Lexical distribution uniformity.
-  4. `uniformity`: Homogeneity of sentence structure.
-  5. `contraction_avoidance`: Ratio of expanded forms ("do not") vs contractions ("don't").
-  6. `sentence_start_entropy`: Predictability of sentence starters.
-  7. `paragraph_uniformity`: Cross-paragraph length consistency.
-  8. `vocabulary_richness`: Length-normalized Type-Token Ratio (TTR).
-  9. `hedging_ratio`: Overuse of qualification markers (*"it is worth noting that"*).
-  10. `passive_voice_score`: Frequency of grammatical passive voice.
-  11. `zipf_deviation`: Deviation from natural language Zipfian power law.
-  12. `punctuation_entropy`: Uniformity of comma, semicolon, dash distributions.
-  13. `transitional_entropy_variance`: Binoculars-style sliding-window token entropy consistency.
+* **14 GBDT Features (LightGBM Text Fusion v2)**:
+  * Neural & Zero-Shot: `transformer_prob`, `roberta_prob`, `binoculars_ai_prob`, `fast_detectgpt_ai_prob`, `lm_perplexity`, `coherence_mean`, `coherence_var`.
+  * Explainable Stylometrics: `perplexity`, `burstiness`, `stylometry_score`, `uniformity`, `contraction_avoidance`, `sentence_start_entropy`, `paragraph_uniformity`, `vocabulary_richness`, `hedging_ratio`, `passive_voice_score`, `zipf_deviation`, `punctuation_entropy`, `transitional_entropy_variance`.
+* **Latency & VRAM Governance (<2s Document Scans)**:
+  * **Shared LM Perplexity Reuse**: `analyze_text()` extracts `lm_perplexity` directly from the Binoculars pass, eliminating redundant forward passes on the Qwen-2.5-0.5B model.
+  * **Batched Sliding Windows**: Long texts are split into sliding windows with a hard ceiling of 8 evenly-spaced chunks processed in a single batched inference call.
+  * **Per-Sentence Neural Cap**: Caps neural sentence passes to 48 sentences (`batch_size=32`, `max_length=128`), evaluating any trailing sentences via lightweight `_fast_stylometric_sentence_prob()`.
 * **Security & Sanitization**: Strips invisible/zero-width evasion characters (`\u200b`, `\u200c`, `\ufeff`, `\u2060`), sanitizes HTML tags via Bleach, and executes Unicode NFKC normalization on all incoming inputs.
 
 ---
@@ -215,6 +250,22 @@ The project is strictly standardized on the backend virtual environment:
   * Computes dense optical flow on CPU without VRAM overhead.
   * Calculates second-derivative acceleration variance to detect generative latent temporal morphing.
 * **Resilient Fallback**: If OpenCV encounters an unreadable frame, `_video_info` provides a structured fallback including `"width": 1920, "height": 1080` to preserve schema contracts.
+
+---
+
+### D. Document Figure Forensics Engine (`document_forensics.py`)
+
+* **Multi-Format Extraction**:
+  * **DOCX Containers**: Unzips OpenXML archive and extracts image blobs from `word/media/*`.
+  * **PDF Containers**: Three-tier extraction stream:
+    1. Raw carving with strict JPEG header-chain validation (`SOI 0xFFD8` + marker check + `SOS 0xFFDA` within 4 KB).
+    2. PNG chunk stream carving (`\x89PNG` to `IEND`).
+    3. Reconstruction of uncompressed raw-pixel `FlateDecode` `DeviceRGB` and `DeviceGray` 8-bit image XObjects.
+* **Fast-Path Scanning**:
+  * Calls `analyze_image_bytes(blob, include_heatmaps=False)` on extracted figures, bypassing GradCAM and PRNU heatmap rendering to process multi-figure documents in under 2 seconds.
+* **Text Fallback**:
+  * When a document contains zero extractable embedded figures, `analyze_document()` extracts text via `extract_text_from_pdf` or `extract_text_from_docx` and falls back to `analyze_text()`, returning a full text forensic verdict.
+* **Ensemble Fusion**: Document score fuses figure scores with $0.6 \times \max(\text{figures}) + 0.4 \times \text{AI\_fraction}$.
 
 ---
 
@@ -368,6 +419,45 @@ Verified live on CUDA using real model weights via `eval_accuracy.py --quick`:
 
 ---
 
+### Failure 14: Long Document & Multi-Page PDF Scan Latency Wall
+* **Symptom**: Scanning long texts or multi-page documents experienced 30s–45s timeouts.
+* **Root Cause**: Sequential sliding-window text inference with full sequence lengths (512 tokens), unbatched per-sentence forward passes across hundreds of sentences, duplicate forward passes loading Qwen-2.5-0.5B for both Binoculars and LM perplexity independently, and image figure extraction attempting to generate GradCAM & PRNU heatmaps for every figure embedded in a document.
+* **Resolution**: 
+  1. Reused Binoculars `lm_perplexity` avoiding duplicate Qwen forward passes.
+  2. Capped sliding windows to 8 evenly-spaced chunks in a single batched tensor.
+  3. Capped neural sentence evaluations to 48 sentences (`batch_size=32`, `max_length=128`) with `_fast_stylometric_sentence_prob` beyond the cap.
+  4. Passed `include_heatmaps=False` to embedded figure image scans. Document analysis now runs in under 2 seconds.
+
+---
+
+### Failure 15: Color-Graded / Edited Authentic Camera Photos False-Flagging as AI
+* **Symptom**: Real camera photos edited with Adobe Lightroom, VSCO, or high-contrast mobile photo filters scored $0.40–0.65$ AI due to Vision Transformer sensitivity to non-linear color grading.
+* **Root Cause**: The Swin Transformer reacted to non-linear color grading curves as synthetic diffusion artifacts, while traditional CFA demosaicing heuristics were suppressed on resized/compressed JPEGs.
+* **Resolution**: Implemented **v4.2 Physical CMOS Sensor Neighbor Forensics** in `image_detector.py`. Verified inter-channel silicon pixel couplings (`rg_correlation >= 0.88`, `gb_correlation >= 0.88`, `abs(rg - gb) <= 0.08`, `residual_std >= 5.5`, `mean_kurtosis >= 11.0`). Passed `is_edited_camera_photo` to `fusion.py`, safely bounding score to authentic range ($0.14–0.24$) and assigning generator attribution to `"Authentic Camera Photo (Edited / Post-Processed)"`.
+
+---
+
+### Failure 16: Raw-Pixel `FlateDecode` Image XObject Extraction in Modern PDFs
+* **Symptom**: ArXiv and LaTeX PDF figures returned 0 extractable images (`figures_found: 0`).
+* **Root Cause**: Modern PDF generators embed figures as uncompressed raw-pixel `FlateDecode` image XObjects (`DeviceRGB` / `DeviceGray` streams) rather than discrete JPEG (`DCTDecode`) or PNG chunks. Pure raw byte carving for `\xFF\xD8` found nothing or corrupted fragments.
+* **Resolution**: Upgraded `document_forensics.py` to a three-tier extractor: (1) strict JPEG SOI/SOS header-chain validation, (2) PNG chunk stream carving, and (3) decompressing `FlateDecode` object streams and reconstructing raw pixel buffers into PIL images with matching color spaces (`DeviceRGB` / `DeviceGray`).
+
+---
+
+### Failure 17: Wheel Scroll Jitter & Stage Skipping in 4-Stage Multi-Spectral Inspector
+* **Symptom**: On the Landing page, trackpad gestures or continuous mousewheel scrolling jumped past the 4-stage multi-spectral inspector without revealing the forensic layers, leaving empty gaps or jittery scroll positions.
+* **Root Cause**: Wheel events were not clamped to monotonic inspector stage progression, and browser native scrolling conflicted with Lenis smooth scroll listeners.
+* **Resolution**: Created `landingLock.ts` and `useLandingScroll.ts` enforcing hard `window.scrollTo` clamping at the inspector's sticky scroll top until all 4 stages (Original $\to$ ELA Compression $\to$ 2D-FFT Periodic $\to$ PRNU Silicon Noise) are sequentially unlocked.
+
+---
+
+### Failure 18: Frontend Bundle Bloat and Framerate Drops from Heavy 3D Backgrounds
+* **Symptom**: Landing page exhibited stuttering on low-end laptops and mobile devices; code review score was downgraded due to large monolithic files (`Landing.tsx` >1,000 LOC, `ResultPanel.tsx` >700 LOC) and unused Three.js dependencies.
+* **Root Cause**: Heavy Three.js WebGL canvas background rendering continuously in the background thread.
+* **Resolution**: Adopted **Ponytail Architecture**: removed Three.js canvas in favor of lightweight SVG conduits with native CSS GPU compositor animations; decomposed monolithic pages into focused subcomponents (`ConduitSection.tsx`, `ForensicInspector.tsx`, `DetectorModalityPanes.tsx`, `ForensicBreakdowns.tsx`); achieved a **100/100 A+ CodeReportCard score**.
+
+---
+
 ## 7. ⚖️ Architectural Drawbacks & Lessons Learned
 
 1. **Never Let Heuristics Override Neural Models (Neural-First Doctrine)**:
@@ -394,18 +484,17 @@ Verified live on CUDA using real model weights via `eval_accuracy.py --quick`:
 
 ## 9. 🚀 Current System Status & Verification Summary
 
-* **Automated Backend Tests**: **46 / 46 Passed** (`pytest -v slop/backend/tests`, 40 baseline + 6 Phase 1-4 tests, 0 failed).
-* **Frontend Production Build**: **Clean Build in 18.65s** (`tsc -b && vite build`, 2,496 modules transformed, 0 errors).
+* **Automated Backend Tests**: **>90 Passed** (`pytest slop/backend/tests`, 0 failed across 20 test modules).
+* **Frontend Production Build**: **Clean Build** (`tsc -b && vite build`, 0 errors, route-level code splitting).
+* **Frontend Architecture & Quality**: **100/100 A+ CodeReportCard Score** via Ponytail architecture (decoupled conduits, 4-stage inspector, zero Three.js canvas overhead).
 * **Static Analysis / Pyright**: **0 Errors, 0 Warnings, 0 Informations** across all backend and test files.
-* **Accuracy Benchmark**: **100.0% Multi-Modal Accuracy** verified across golden set via `eval_accuracy.py --quick`.
+* **Scan Latency**: **<2.0s multi-modal scans** on long documents and multi-page PDFs with batched sliding windows and 48-sentence neural capping.
 * **GPU Hardware Acceleration**: **Active** (`torch-2.6.0+cu124` on NVIDIA RTX 4050 Laptop GPU, VRAM ceiling strictly $<5.0$ GB).
-* **Smooth Scrolling**: **Active** (Lenis smooth scroll + 250vh sticky Multi-Spectral Inspector on `http://127.0.0.1:3000`).
+* **Smooth Scrolling & Stage Locks**: **Active** (Lenis smooth scroll + jitter-free 4-stage wheel scroll lock with hard `scrollY` clamping on Landing page).
 * **Live Server Endpoints**:
   * Backend API: `http://127.0.0.1:8000` (Health: `{"status": "ok", "app": "SLOP"}`)
   * Frontend UI: `http://127.0.0.1:3000/detector`
-
----
-*Context file updated on 2026-09-20 with Phase 1-4 execution, VRAM hardware lock expansion, RTR token family revocation, 2FA backup codes, text comparator, ops telemetry, and 46/46 test verification.*
+  * Calibration Dashboard: `http://127.0.0.1:3000/calibration` (`dashboard/eval_dashboard.html`)
 
 ---
 
@@ -678,4 +767,61 @@ To eliminate synthetic heuristic imputation, prevent test set data leakage, esta
    * `.github/workflows/ci.yml`: Enforces `fetch-depth: 0`, integrity check, and rule linter as mandatory gates.
    * `Model/fusion/MODEL_HASHES.sha256`: SHA-256 manifest committed in place of binary model weights.
    * Branch checkpointing: Base commit `9d2694f` on `pre-step0-baseline` tagged `pre-step0`, with Step 0 isolated on branch `step0-rules-and-sealing`.
+
+---
+
+## 11. 🚀 Production Hardening, Video Forensics & Fullstack Optimization (2026-10-14 – 2026-10-20)
+
+### A. Step 1: Text Latency, VRAM Optimization & Dev Calibration Probe (`d6fc45e`)
+* **LM Perplexity Lazy Load & Eviction**: Refactored `perplexity.py` to lazily instantiate the Qwen-2.5-0.5B model and tokenizer with explicit `device_map="auto"`. Added `evict_perplexity_model()` to guarantee GPU context release.
+* **Text Pipeline Short-Circuit**: In `text_detector.py`, added fast short-circuit for empty or short token inputs (<50 tokens) and synchronized token lengths.
+* **Dev Split Calibration Probe**: Created `scripts/calibrate_binoculars_dev.py` to probe Binoculars threshold calibration on the unsealed `dev` partition.
+
+### B. Resolution of 4 Deep Forensic ML Bugs & Near-100% Accuracy (`0f16705`, `acd804e`)
+* **Bug 1: CFA Bayer Demosaicing Estimation**: In `image_detector.py`, resolved Bayer peak calculation distortion on non-standard aspect ratios and heavily compressed JPEGs, preventing false demosaicing spikes.
+* **Bug 2: PRNU Sensor Noise Residual Floor**: Fixed Photo-Response Non-Uniformity residual extraction by properly normalizing the denoised wavelet difference across high-frequency components.
+* **Bug 3: Swin Vision Transformer Multi-Crop Weighting**: Corrected center and corner crop confidence weighting aggregation to prevent single-corner outliers from distorting full-frame neural predictions.
+* **Bug 4: GradCAM Tensor Normalization**: Fixed dimension mismatch in Gradient-weighted Class Activation Mapping backpropagation, ensuring accurate visual heatmap generation.
+* **Linear Probe Pooling (`clip_probe.py`)**: Fixed feature normalization and pooling across ViT-L/14 patch tokens.
+* **Fusion Rule Compliance (`fusion.py`)**: Re-centered all forensic evidence signals strictly into the GBDT and Platt calibrator without hard score clamps outside `fusion.py`.
+
+### C. Video Forensics Phases 1–3 & Held-Out Calibration Dashboard (`1ce23d4`, `82d7b3c`)
+* **Phases 1–3 Video Forensics (`video_detector.py`)**:
+  * **Track A (Face Deepfakes)**: YuNet ONNX face detection (20% padding) with cropped ViT inference.
+  * **Track B (Full-Scene Diffusion)**: Multi-frame sampling evaluated via Swin Transformer + SynthID spectral analysis.
+  * **Track C (Farnebäck Optical Flow)**: Dense optical flow tracking on CPU with second-derivative acceleration variance to identify temporal phase discontinuities in generative video.
+  * **Screen Recording Discriminator**: Discrete color histogram analysis and orthogonal line alignment to isolate UI captures from camera/diffusion footage.
+* **Live Calibration Dashboard (`dashboard/eval_dashboard.html`, `scripts/generate_dashboard.py`)**:
+  * Automated dashboard generator calculating per-modality accuracy, Wilson score 95% confidence intervals, Expected Calibration Error (ECE), and reliability diagrams directly from `heldout_report.json`.
+
+### D. Fullstack Hardening: Instant Page Load, 2s PDF Scan & Edited Camera Forensics (`c8cffb9`, `171c19a`)
+* **v4.2 Physical CMOS Sensor Forensics for Edited Camera Photos**:
+  * Added inter-channel pixel correlations (`rg_correlation >= 0.88`, `gb_correlation >= 0.88`, `abs(rg - gb) <= 0.08`), residual variance (`residual_std >= 5.5`), and kurtosis (`mean_kurtosis >= 11.0`) in `image_detector.py`.
+  * Allows the detector to authenticate camera photos that have undergone heavy color grading, Instagram filters, or Adobe Lightroom editing, preventing false-positive AI classifications.
+  * Mapped directly into `fusion.py` as `is_edited_camera_photo`, cleanly bounding the overall score to authentic range ($0.14–0.24$) and assigning `primary_signal: "optical_sensor_edited_photo"`.
+* **Sub-2-Second Multi-Page PDF & Document Figure Carving**:
+  * Fast extraction stream in `document_forensics.py`: JPEG header-chain validation, PNG chunk parsing, and raw-pixel `FlateDecode` `DeviceRGB`/`DeviceGray` XObject reconstruction.
+  * Fast-path scanning: embedded figures are evaluated with `include_heatmaps=False`, dropping multi-figure PDF analysis from 35s+ to <2 seconds.
+  * Text fallback: documents without figures are automatically extracted and evaluated via `analyze_text()`.
+* **Text Pipeline Throughput Optimization**:
+  * Batched sliding windows (8 chunks maximum).
+  * 48-sentence neural forward pass ceiling with `_fast_stylometric_sentence_prob()` fallback for trailing sentences.
+  * Shared LM perplexity reuse between Binoculars and stylometrics.
+* **Jitter-Free 4-Stage Wheel Scroll Lock on Landing**:
+  * Implemented `landingLock.ts` and `useLandingScroll.ts` providing hard scrollY clamping and monotonic stage progression across the 4-stage multi-spectral inspector (Original $\to$ ELA $\to$ 2D-FFT $\to$ PRNU Noise).
+
+### E. Frontend Ponytail Refactor & 100/100 A+ CodeReportCard (`19e7d14`)
+* **Modular Decomposition**:
+  * Split monolithic `Landing.tsx` (>1,000 LOC) into focused, reusable modules: `ConduitSection.tsx`, `ForensicInspector.tsx`, `InspectorGraphics.tsx`, `spectralLayers.ts`, `HeroSection.tsx`, and `CtaBanner.tsx`.
+  * Modularized detector panels: `DetectorModalityPanes.tsx`, `ForensicBreakdowns.tsx`, `DocumentBreakdowns.tsx`, `LLMAttributionCard.tsx`, `MediaFileUpload.tsx`, and `signalMeta.ts`.
+* **Zero Three.js Canvas Overhead**:
+  * Eliminated heavy Three.js canvas background and runtime bundle bloat in favor of native CSS GPU-composited conduits and responsive SVG layers.
+* **Route Code-Splitting**:
+  * Added React lazy loading for detector, dashboard, calibration, and auth routes in `App.tsx`.
+* **Quality Score**:
+  * Reached a verified **100/100 A+ CodeReportCard score**.
+
+---
+*Context file synchronized with all recent machine learning algorithms, latency optimizations, video forensics, document figure carving, and frontend ponytail modularization through commit 171c19a.*
+
 
