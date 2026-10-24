@@ -69,6 +69,7 @@ flowchart LR
     E1 --> F1["LIKELY_HUMAN (8% - 22%): False-Positive Protection"]
     E2 --> F2["DEFINITELY_AI (88% - 99%): Sentence & Section Threat Map"]
     C4 --> F2
+```
 
 ### 1.2 `[λ_RAW]` Image & v4.2 Edited Camera Photo Working Flow
 
