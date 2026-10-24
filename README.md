@@ -14,6 +14,8 @@ Below are the three core forensic pipelines showing how **AI-Slop-Detector** pro
 
 #### Step-by-Step Signal Pipeline (`Token Stream -> Dual-LLM Cross-Perplexity -> Platt-Calibrated Verdict + Bilingual Viva`)
 
+![Text Forensics Animated Workflow](./assets/Code_Generated_Image.gif)
+
 ```mermaid
 flowchart LR
     A["Input Text / Source Code / PDF"] --> B["NFKC Sanitizer & Stego Stripper"]
@@ -39,6 +41,8 @@ flowchart LR
 
 #### Step-by-Step Signal Pipeline (`Multi-Spectral Decode -> Neural vs. Physical CMOS Reconciliation -> Verdict`)
 
+![Image Forensics Animated Workflow](./assets/Code_Generated_Imagee.gif)
+
 ```mermaid
 flowchart TD
     I(["Input Image (.JPG / .PNG / .WEBP / Webcam)"]) --> T1["Tier 1: Provenance & Watermark (5-Tier C2PA + SynthID)"]
@@ -57,6 +61,7 @@ flowchart TD
 
 #### Step-by-Step Signal Pipeline (`8-Keyframe SSE Stream -> Face Seam + Pan-Normalized Flow -> Timeline Verdict`)
 
+![Video Forensics Animated Workflow](./assets/Code_Generated_Imageee.gif)
 
 ```mermaid
 flowchart LR
