@@ -1,1 +1,0 @@
-Left a couple comments on lines 45-52. That raw SQL query is vulnerable to injection if the user passes a quote in `search_query`. Can we switch this to SQLAlchemy's `text()` with bindparams, or just use the ORM filter directly? Also looks like we're missing an index on `created_at` which will bite us once the table gets past 100k rows.

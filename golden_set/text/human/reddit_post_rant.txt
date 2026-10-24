@@ -1,1 +1,0 @@
-Honestly tired of every tool trying to force an Electron app down our throats. My laptop fans sound like a jet engine just having a notes app and a chat client open. Whatever happened to lightweight native GTK or Qt apps? Sublime Text opens in 10ms; modern tools take 5 seconds just to show a splash screen.

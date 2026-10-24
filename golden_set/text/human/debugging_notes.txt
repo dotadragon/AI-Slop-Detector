@@ -1,4 +1,0 @@
-Notes from today's triage:
-- Memory usage spikes every time the PDF parser hits malformed xref tables.
-- PyPDF2 hangs in an infinite while loop at line 894 when EOF marker is missing.
-- Replaced with pdfminer extract_text and capped max buffer at 25MB. Memory stays flat at 80MB now.

@@ -1,1 +1,0 @@
-Static single assignment (SSA) form simplifies dataflow analysis by guaranteeing that every register variable is assigned exactly once. Furthermore, dominance frontiers allow optimal insertion of phi-nodes across control flow graph merge points. Therefore, dead code elimination and global value numbering operate in near-linear time.

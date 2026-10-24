@@ -1,1 +1,0 @@
-To solve this problem rigorously, we must first establish the foundational mathematical principles underpinning dynamic programming. It bears mentioning that the optimal substructure enables memoization of overlapping subproblems.

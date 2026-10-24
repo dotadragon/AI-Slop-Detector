@@ -1,1 +1,0 @@
-looks good to me overall, just one small nit on the error handling in auth.py where we should probably return 401 instead of 403. other than that feel free to merge.

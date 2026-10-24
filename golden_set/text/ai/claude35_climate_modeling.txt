@@ -1,1 +1,0 @@
-Coupled general circulation models synthesize atmospheric thermodynamics with ocean hydrodynamics to forecast decadal temperature anomalies. Moreover, parametric uncertainty in cloud microphysics introduces non-trivial variance into equilibrium climate sensitivity estimates. In conclusion, observational calibration against satellite radiometric datasets is necessary.
